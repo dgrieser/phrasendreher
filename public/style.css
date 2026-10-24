@@ -352,7 +352,6 @@ h1 span:last-child { color: var(--pink); transform: translateX(8%); animation: w
   border-radius: 6px;
   box-shadow: 0 3px 0 var(--pink-deep);
 }
-.badge.jackpot { background: var(--gold); color: var(--ink); box-shadow: 0 3px 0 var(--gold-deep); }
 
 blockquote {
   margin: 8px 0 10px;
@@ -365,7 +364,7 @@ blockquote {
 blockquote::before { content: "„"; color: var(--pink); }
 blockquote::after { content: "“"; color: var(--pink); }
 
-.sources {
+.note {
   margin: 0 0 14px;
   min-height: 1em;
   font-size: .82rem;
@@ -437,7 +436,6 @@ footer {
 .sound { background: rgba(255,255,255,.12); color: var(--cream); box-shadow: none; font-size: .85rem; }
 
 /* ---------- Effekte ---------- */
-#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
 
 .toast {
   position: fixed;
@@ -456,14 +454,6 @@ footer {
   text-align: center;
 }
 .toast.show { transform: translate(-50%, 0); visibility: visible; transition-delay: 0s; }
-
-.machine.shake { animation: shake .4s; }
-@keyframes shake {
-  20% { transform: translateX(-4px) rotate(-.6deg); }
-  40% { transform: translateX(4px) rotate(.6deg); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(2px); }
-}
 
 @media (min-width: 520px) {
   :root { --item-h: 100px; }

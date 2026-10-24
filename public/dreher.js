@@ -125,7 +125,7 @@
     return { spin };
   }
 
-  // Zerlegt einen fertigen Satz in drei Walzen-Stücke (für die handverlesenen Klassiker).
+  // Zerlegt einen fertigen Satz in drei Walzen-Stücke.
   function splitInThree(text) {
     const w = text.split(/\s+/);
     if (w.length < 3) return [w[0] || "", w[1] || "", ""];

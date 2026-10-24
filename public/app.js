@@ -1,21 +1,7 @@
 (function () {
   "use strict";
 
-  // Handverlesene Klassiker – fallen selten als Jackpot.
-  const KLASSIKER = [
-    "Alle Dinge sind drei",
-    "Aller Anfang ist Kaffee",
-    "Besser spät als gar kein WLAN.",
-    "Da muss man die Küche im Dorf lassen",
-    "Das ist ein zweischneidiges Pferd",
-    "Das ist ja allerunterste Gürtellinie",
-    "Das ist nur einen Katzenwurf entfernt",
-    "Das ist nur ein ganz schmaler Spagat",
-    "Das ist sicher wie die Armen in der Kirche",
-    "Das musst Du jetzt nicht aufs Trapez bringen",
-    "Das Pferd von hinten aufrollen",
-  ];
-  const JACKPOT_CHANCE = 1 / 12;
+  const WAITING = ["Die Walzen glühen …", "Hier wird gerade ein Fass aufgemacht …", "Die Phrasen werden gedroschen …", "Gleich fällt der Groschen …", "Das Rad wird neu erfunden …", "Kurz die Kirche ums Dorf tragen …"];
   const BADGES = ["Volltreffer!", "Gewonnen!", "Frisch verdreht", "Weisheit des Tages", "Bingo!", "Sprichwörtlich!", "Zack, verdreht!", "Ausgezeichnet falsch"];
 
   const $ = (id) => document.getElementById(id);
@@ -63,24 +49,40 @@
     strips[k].style.transform = "";
   }
 
-  function spinReel(k, finalText, duration) {
+  // Dreht endlos, bis land() aufgerufen wird.
+  const loops = [];
+  function startReel(k) {
     const strip = strips[k];
     const current = strip.lastElementChild ? strip.lastElementChild.textContent : "";
-    const count = reduceMotion ? 2 : 14 + k * 5;
-    const items = [makeItem(current)];
+    const loop = Array.from({ length: 10 }, () => pick(fillers[k]));
+    // Der Anfang wird hinten wiederholt, damit die Schleife nahtlos ist.
+    strip.replaceChildren(...[current, ...loop, current].map(makeItem));
+    const h = reels[k].clientHeight;
+    strip.classList.add("blur");
+    loops[k] = strip.animate(
+      [{ transform: "translateY(0)" }, { transform: `translateY(${-(loop.length + 1) * h}px)` }],
+      { duration: (loop.length + 1) * (reduceMotion ? 400 : 75 + k * 8), iterations: Infinity }
+    );
+  }
+
+  // Bremst die Walze ab und lässt sie auf finalText einrasten.
+  function landReel(k, finalText, duration) {
+    const strip = strips[k];
+    if (loops[k]) loops[k].cancel();
+    const count = reduceMotion ? 1 : 6 + k * 3;
+    const items = [];
     for (let i = 0; i < count; i++) items.push(makeItem(pick(fillers[k])));
     items.push(makeItem(finalText));
     strip.replaceChildren(...items);
     const h = reels[k].clientHeight;
-    const end = -(items.length - 1) * h;
-    strip.classList.add("blur");
     const anim = strip.animate(
-      [{ transform: "translateY(0)" }, { transform: `translateY(${end}px)` }],
-      { duration, easing: "cubic-bezier(.2, .7, .25, 1.06)", fill: "forwards" }
+      [{ transform: "translateY(0)" }, { transform: `translateY(${-(items.length - 1) * h}px)` }],
+      { duration, easing: "cubic-bezier(.15, .75, .3, 1.08)", fill: "forwards" }
     );
-    setTimeout(() => strip.classList.remove("blur"), duration * 0.7);
+    setTimeout(() => strip.classList.remove("blur"), duration * 0.6);
     return anim.finished.then(() => {
       anim.cancel();
+      strip.classList.remove("blur");
       setReel(k, finalText);
       reels[k].classList.remove("landed");
       void reels[k].offsetWidth;
@@ -93,13 +95,17 @@
   // ---------- Drehen ----------
   let busy = false;
   let current = null;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  function nextResult() {
-    if (spins > 0 && Math.random() < JACKPOT_CHANCE) {
-      const text = pick(KLASSIKER).replace(/\.$/, "");
-      return { text, reels: Dreher.splitInThree(text), sources: null, jackpot: true };
-    }
-    return dreher.spin();
+  // Fragt den Server (LLM). Ohne Server – z. B. als reine statische Seite – mischt der Browser selbst.
+  async function fetchPhrase() {
+    try {
+      const res = await fetch("api/dreh", { method: "POST", signal: AbortSignal.timeout(60000) });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      if (data && data.text) return data.text;
+    } catch (e) { /* Notlösung unten */ }
+    return dreher.spin().text;
   }
 
   async function spin() {
@@ -108,35 +114,29 @@
     machine.classList.add("spinning");
     document.querySelector(".lever").classList.add("used");
     sound.unlock();
-    const result = nextResult();
     $("ticket").style.opacity = ".45";
     $("badge").textContent = "Dreht…";
-    $("badge").classList.remove("jackpot");
-    const base = reduceMotion ? 300 : 1200;
+    $("note").textContent = pick(WAITING);
+    reels.forEach((_, k) => startReel(k));
     const stopTicks = sound.ticking();
-    await Promise.all(result.reels.map((text, k) => spinReel(k, text, base + k * (reduceMotion ? 150 : 520))));
+    const [text] = await Promise.all([fetchPhrase(), wait(reduceMotion ? 300 : 1100)]);
+    const parts = Dreher.splitInThree(text);
+    const base = reduceMotion ? 250 : 900;
+    await Promise.all(parts.map((p, k) => landReel(k, p, base + k * (reduceMotion ? 120 : 450))));
     stopTicks();
     spins++;
     store.set("spins", spins);
-    show(result, true);
+    show(text, true);
     busy = false;
     machine.classList.remove("spinning");
   }
 
-  function show(result, fresh) {
-    current = result;
+  function show(text, fresh) {
+    current = { text };
     $("counter").textContent = String(spins).padStart(3, "0");
-    $("phrase").textContent = result.text;
-    const badge = $("badge");
-    badge.classList.toggle("jackpot", !!result.jackpot);
-    badge.textContent = result.jackpot ? "★ JACKPOT ★ Klassiker" : fresh ? pick(BADGES) : "Geteilte Weisheit";
-    const src = $("sources");
-    src.replaceChildren();
-    if (result.sources) {
-      src.append("Gemischt aus „", textSpan(result.sources[0]), "“ + „", textSpan(result.sources[1]), "“");
-    } else if (result.jackpot) {
-      src.textContent = "Handverlesen aus dem Phrasenschwein-Archiv";
-    }
+    $("phrase").textContent = text;
+    $("badge").textContent = fresh ? pick(BADGES) : "Geteilte Weisheit";
+    $("note").textContent = "";
     const ticket = $("ticket");
     ticket.style.opacity = "";
     ticket.classList.remove("pop");
@@ -144,18 +144,11 @@
     ticket.classList.add("pop");
     updateFavButton();
     if (fresh) {
-      history = [result.text, ...history.filter((t) => t !== result.text)].slice(0, 15);
+      history = [text, ...history.filter((t) => t !== text)].slice(0, 15);
       store.set("history", history);
       renderLists();
-      if (result.jackpot) { confetti(); sound.jackpot(); vibrate([60, 40, 60, 40, 120]); machine.classList.add("shake"); setTimeout(() => machine.classList.remove("shake"), 450); }
-      else sound.ding();
+      sound.ding();
     }
-  }
-
-  function textSpan(text) {
-    const s = document.createElement("span");
-    s.textContent = text;
-    return s;
   }
 
   // ---------- Hebel ----------
@@ -283,7 +276,7 @@
       updateFavButton();
     })));
     $("historyList").replaceChildren(...history.map((t) => listItem(t, "↺", "Nochmal anzeigen", () => {
-      show({ text: t, reels: Dreher.splitInThree(t), sources: null }, false);
+      show(t, false);
       Dreher.splitInThree(t).forEach((p, k) => setReel(k, p));
       window.scrollTo({ top: 0, behavior: "smooth" });
     })));
@@ -356,43 +349,8 @@
       },
       clunk(k) { beep(180 - k * 30, 0.12, "triangle", 0.18); },
       ding() { [784, 1047, 1319].forEach((f, i) => beep(f, 0.25, "sine", 0.12, i * 0.09)); },
-      jackpot() { [523, 659, 784, 1047, 784, 1047, 1319, 1568].forEach((f, i) => beep(f, 0.2, "square", 0.06, i * 0.1)); },
     };
   })();
-
-  // ---------- Konfetti ----------
-  function confetti() {
-    if (reduceMotion) return;
-    const canvas = $("confetti");
-    const c = canvas.getContext("2d");
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = innerWidth * dpr;
-    canvas.height = innerHeight * dpr;
-    c.scale(dpr, dpr);
-    const colors = ["#ffcc33", "#ff3d8b", "#3df5c4", "#fff6e0", "#e5232f"];
-    const parts = Array.from({ length: 160 }, () => ({
-      x: innerWidth / 2 + (Math.random() - 0.5) * 80,
-      y: innerHeight * 0.35,
-      vx: (Math.random() - 0.5) * 14,
-      vy: -Math.random() * 14 - 4,
-      s: 5 + Math.random() * 7,
-      r: Math.random() * Math.PI,
-      vr: (Math.random() - 0.5) * 0.4,
-      col: pick(colors),
-    }));
-    const startT = performance.now();
-    (function frame(now) {
-      c.clearRect(0, 0, innerWidth, innerHeight);
-      parts.forEach((p) => {
-        p.vy += 0.35; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
-        c.save(); c.translate(p.x, p.y); c.rotate(p.r);
-        c.fillStyle = p.col; c.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
-        c.restore();
-      });
-      if (now - startT < 3000) requestAnimationFrame(frame);
-      else c.clearRect(0, 0, innerWidth, innerHeight);
-    })(startT);
-  }
 
   // ---------- Start ----------
   ["Zieh", "den", "Hebel!"].forEach((t, k) => setReel(k, t));
@@ -404,7 +362,7 @@
   if (shared) {
     const text = shared.slice(0, 200);
     Dreher.splitInThree(text).forEach((p, k) => setReel(k, p));
-    show({ text, reels: Dreher.splitInThree(text), sources: null }, false);
-    $("sources").textContent = "Jemand hat dir diese Weisheit geschickt. Jetzt selbst drehen!";
+    show(text, false);
+    $("note").textContent = "Jemand hat dir diese Weisheit geschickt. Jetzt selbst drehen!";
   }
 })();
