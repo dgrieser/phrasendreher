@@ -1,11 +1,17 @@
 (function () {
   "use strict";
 
-  const WAITING = ["Die Walzen glühen …", "Hier wird gerade ein Fass aufgemacht …", "Die Phrasen werden gedroschen …", "Gleich fällt der Groschen …", "Das Rad wird neu erfunden …", "Kurz die Kirche ums Dorf tragen …"];
-  const BADGES = ["Volltreffer!", "Gewonnen!", "Frisch verdreht", "Weisheit des Tages", "Bingo!", "Sprichwörtlich!", "Zack, verdreht!", "Ausgezeichnet falsch"];
+  const WAITING = [
+    "Die Walzen glühen …",
+    "Hier wird gerade ein Fass aufgemacht …",
+    "Die Phrasen werden gedroschen …",
+    "Gleich fällt der Groschen …",
+    "Das Rad wird neu erfunden …",
+    "Kurz die Kirche ums Dorf tragen …",
+  ];
 
   const $ = (id) => document.getElementById(id);
-  const machine = document.querySelector(".machine");
+  const body = document.body;
   const reels = [...document.querySelectorAll(".reel")];
   const strips = reels.map((r) => r.querySelector(".strip"));
   const dreher = Dreher.createDreher(window.REDEWENDUNGEN);
@@ -36,20 +42,18 @@
   function makeItem(text) {
     const el = document.createElement("div");
     el.className = "item";
-    if (!text) { el.classList.add("empty"); el.textContent = "!"; }
-    else {
-      el.textContent = text;
-      if (text.length > 26) el.classList.add("small");
-    }
+    if (!text) { el.classList.add("empty"); el.textContent = "·"; return el; }
+    el.textContent = text;
+    if (text.length > 24) el.classList.add("long");
+    else if (text.length > 14) el.classList.add("mid");
     return el;
   }
 
   function setReel(k, text) {
     strips[k].replaceChildren(makeItem(text));
-    strips[k].style.transform = "";
   }
 
-  // Dreht endlos, bis land() aufgerufen wird.
+  // Dreht endlos, bis landReel() aufgerufen wird.
   const loops = [];
   function startReel(k) {
     const strip = strips[k];
@@ -61,7 +65,7 @@
     strip.classList.add("blur");
     loops[k] = strip.animate(
       [{ transform: "translateY(0)" }, { transform: `translateY(${-(loop.length + 1) * h}px)` }],
-      { duration: (loop.length + 1) * (reduceMotion ? 400 : 75 + k * 8), iterations: Infinity }
+      { duration: (loop.length + 1) * (reduceMotion ? 500 : 110 + k * 12), iterations: Infinity }
     );
   }
 
@@ -69,7 +73,7 @@
   function landReel(k, finalText, duration) {
     const strip = strips[k];
     if (loops[k]) loops[k].cancel();
-    const count = reduceMotion ? 1 : 6 + k * 3;
+    const count = reduceMotion ? 1 : 5 + k * 2;
     const items = [];
     for (let i = 0; i < count; i++) items.push(makeItem(pick(fillers[k])));
     items.push(makeItem(finalText));
@@ -77,9 +81,9 @@
     const h = reels[k].clientHeight;
     const anim = strip.animate(
       [{ transform: "translateY(0)" }, { transform: `translateY(${-(items.length - 1) * h}px)` }],
-      { duration, easing: "cubic-bezier(.15, .75, .3, 1.08)", fill: "forwards" }
+      { duration, easing: "cubic-bezier(.12, .7, .2, 1)", fill: "forwards" }
     );
-    setTimeout(() => strip.classList.remove("blur"), duration * 0.6);
+    setTimeout(() => strip.classList.remove("blur"), duration * 0.55);
     return anim.finished.then(() => {
       anim.cancel();
       strip.classList.remove("blur");
@@ -87,8 +91,8 @@
       reels[k].classList.remove("landed");
       void reels[k].offsetWidth;
       reels[k].classList.add("landed");
-      sound.clunk(k);
-      vibrate(18);
+      sound.settle(k);
+      vibrate(10);
     });
   }
 
@@ -97,7 +101,7 @@
   let current = null;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // Fragt den Server (LLM). Ohne Server – z. B. als reine statische Seite – mischt der Browser selbst.
+  // Fragt den Server (LLM). Ohne Server mischt der Browser selbst.
   async function fetchPhrase() {
     try {
       const res = await fetch("api/dreh", { method: "POST", signal: AbortSignal.timeout(60000) });
@@ -111,181 +115,151 @@
   async function spin() {
     if (busy) return;
     busy = true;
-    machine.classList.add("spinning");
-    document.querySelector(".lever").classList.add("used");
+    body.classList.add("spinning");
+    $("actions").classList.add("hidden");
     sound.unlock();
-    $("ticket").style.opacity = ".45";
-    $("badge").textContent = "Dreht…";
     $("note").textContent = pick(WAITING);
     reels.forEach((_, k) => startReel(k));
     const stopTicks = sound.ticking();
-    const [text] = await Promise.all([fetchPhrase(), wait(reduceMotion ? 300 : 1100)]);
+    const [text] = await Promise.all([fetchPhrase(), wait(reduceMotion ? 300 : 1200)]);
     const parts = Dreher.splitInThree(text);
-    const base = reduceMotion ? 250 : 900;
-    await Promise.all(parts.map((p, k) => landReel(k, p, base + k * (reduceMotion ? 120 : 450))));
+    const base = reduceMotion ? 250 : 1100;
+    await Promise.all(parts.map((p, k) => landReel(k, p, base + k * (reduceMotion ? 120 : 380))));
     stopTicks();
     spins++;
     store.set("spins", spins);
     show(text, true);
     busy = false;
-    machine.classList.remove("spinning");
+    body.classList.remove("spinning");
   }
 
   function show(text, fresh) {
-    current = { text };
-    $("counter").textContent = String(spins).padStart(3, "0");
+    current = text;
     $("phrase").textContent = text;
-    $("badge").textContent = fresh ? pick(BADGES) : "Geteilte Weisheit";
-    $("note").textContent = "";
-    const ticket = $("ticket");
-    ticket.style.opacity = "";
-    ticket.classList.remove("pop");
-    void ticket.offsetWidth;
-    ticket.classList.add("pop");
+    $("counter").textContent = "Nº " + spins;
+    $("note").textContent = " ";
+    $("actions").classList.remove("hidden");
     updateFavButton();
     if (fresh) {
       history = [text, ...history.filter((t) => t !== text)].slice(0, 15);
       store.set("history", history);
       renderLists();
-      sound.ding();
+      sound.chime();
     }
   }
 
-  // ---------- Hebel ----------
-  const lever = $("lever");
-  const arm = $("leverArm");
-  function leverTravel() { return lever.clientHeight - 44 - 34; }
-
-  function releaseArm(fromY) {
-    arm.animate(
-      [{ transform: `translateY(${fromY}px)` }, { transform: "translateY(-6px)", offset: 0.7 }, { transform: "translateY(0)" }],
-      { duration: 420, easing: "ease-out" }
-    );
-    arm.style.transform = "";
-  }
-
-  function autoPull(then) {
-    const t = leverTravel();
-    arm.animate([{ transform: "translateY(0)" }, { transform: `translateY(${t}px)` }], { duration: 220, easing: "ease-in" })
-      .finished.then(() => { releaseArm(t); then(); });
-  }
-
-  dragHandler(lever, {
-    axis: "y",
-    max: leverTravel,
-    move: (d) => { arm.style.transform = `translateY(${d}px)`; },
-    end: (d, max, tapped) => {
-      if (tapped) { arm.style.transform = ""; return autoPull(spin); }
-      releaseArm(d);
-      if (d > max * 0.6) spin();
-    },
-  });
-
   // ---------- Schieberegler ----------
   const slider = $("slider");
-  const thumb = $("sliderThumb");
-  function sliderTravel() { return slider.clientWidth - thumb.offsetWidth - 10; }
-  function snapThumb(from) {
-    thumb.animate([{ transform: `translateX(${from}px)` }, { transform: "translateX(0)" }], { duration: 350, easing: "cubic-bezier(.3, 1.4, .5, 1)" });
-    thumb.style.transform = "";
+  const knob = $("sliderThumb");
+  const label = $("sliderLabel");
+  const travel = () => slider.clientWidth - knob.offsetWidth - 14;
+
+  function moveKnob(d, max) {
+    knob.style.transform = `translateX(${d}px)`;
+    label.style.opacity = String(1 - d / max);
   }
-  dragHandler(slider, {
-    axis: "x",
-    max: sliderTravel,
-    move: (d) => { thumb.style.transform = `translateX(${d}px) rotate(${d * 1.5}deg)`; },
-    end: (d, max, tapped) => {
-      if (tapped) {
-        thumb.animate([{ transform: "translateX(0)" }, { transform: `translateX(${max}px) rotate(${max * 1.5}deg)` }], { duration: 260, easing: "ease-in" })
-          .finished.then(() => { snapThumb(max); spin(); });
-        return;
-      }
-      snapThumb(d);
-      if (d > max * 0.75) spin();
-    },
+  function snapBack(from) {
+    knob.animate([{ transform: `translateX(${from}px)` }, { transform: "translateX(0)" }],
+      { duration: 520, easing: "cubic-bezier(.3, 1.25, .5, 1)" });
+    knob.style.transform = "";
+    label.style.opacity = "";
+  }
+  function glideAndSpin(from, max) {
+    knob.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${max}px)` }],
+      { duration: reduceMotion ? 1 : 240, easing: "ease-in" })
+      .finished.then(() => { snapBack(max); spin(); });
+  }
+
+  let drag = null;
+  slider.addEventListener("pointerdown", (e) => {
+    if (busy) return;
+    drag = { x: e.clientX, t: Date.now(), d: 0, max: travel() };
+    slider.setPointerCapture(e.pointerId);
   });
-
-  function dragHandler(el, { axis, max, move, end }) {
-    let start = null;
-    el.addEventListener("pointerdown", (e) => {
-      if (busy) return;
-      start = { x: e.clientX, y: e.clientY, t: Date.now(), d: 0, max: max() };
-      el.setPointerCapture(e.pointerId);
-    });
-    el.addEventListener("pointermove", (e) => {
-      if (!start) return;
-      const raw = axis === "y" ? e.clientY - start.y : e.clientX - start.x;
-      start.d = Math.max(0, Math.min(start.max, raw));
-      move(start.d);
-    });
-    const finish = () => {
-      if (!start) return;
-      const s = start;
-      start = null;
-      end(s.d, s.max, s.d < 6 && Date.now() - s.t < 400);
-    };
-    el.addEventListener("pointerup", finish);
-    el.addEventListener("pointercancel", () => { if (start) { start.d = 0; start = null; move(0); } });
-    el.addEventListener("keydown", (e) => {
-      if ((e.key === "Enter" || e.key === " ") && !busy) { e.preventDefault(); end(0, max(), true); }
-    });
-  }
-
+  slider.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    drag.d = Math.max(0, Math.min(drag.max, e.clientX - drag.x));
+    moveKnob(drag.d, drag.max);
+  });
+  slider.addEventListener("pointerup", () => {
+    if (!drag) return;
+    const { d, max, t } = drag;
+    drag = null;
+    const tapped = d < 6 && Date.now() - t < 400;
+    if (tapped || d > max * 0.7) glideAndSpin(d, max);
+    else snapBack(d);
+  });
+  slider.addEventListener("pointercancel", () => { if (drag) { snapBack(drag.d); drag = null; } });
+  slider.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && !busy) { e.preventDefault(); glideAndSpin(0, travel()); }
+  });
   document.addEventListener("keydown", (e) => {
-    if (e.key === " " && e.target === document.body && !busy) { e.preventDefault(); autoPull(spin); }
+    if (e.key === " " && e.target === body && !busy) { e.preventDefault(); glideAndSpin(0, travel()); }
   });
 
   // ---------- Teilen & Merken ----------
   $("shareBtn").addEventListener("click", async () => {
     if (!current) return;
-    const url = location.origin + location.pathname + "#w=" + encodeURIComponent(current.text);
-    const text = `„${current.text}“ – frisch gedreht beim Phrasendreher 🎰`;
+    const url = location.origin + location.pathname + "#w=" + encodeURIComponent(current);
+    const text = `„${current}“ – frisch verdreht beim Phrasendreher`;
     try {
       if (navigator.share) { await navigator.share({ title: "Phrasendreher", text, url }); return; }
       await navigator.clipboard.writeText(text + "\n" + url);
-      toast("In die Zwischenablage gekritzelt ✍️");
+      toast("In die Zwischenablage kopiert");
     } catch (e) {
-      if (e && e.name !== "AbortError") toast("Teilen ging in die Binsen 🙈");
+      if (e && e.name !== "AbortError") toast("Teilen ging in die Binsen");
     }
   });
 
   $("favBtn").addEventListener("click", () => {
     if (!current) return;
-    const has = favorites.includes(current.text);
-    favorites = has ? favorites.filter((t) => t !== current.text) : [current.text, ...favorites];
+    const has = favorites.includes(current);
+    favorites = has ? favorites.filter((t) => t !== current) : [current, ...favorites];
     store.set("favorites", favorites);
     updateFavButton();
     renderLists();
-    if (!has) toast("Gemerkt! Das hat einen Haken – im besten Sinne ⭐");
+    if (!has) toast("Gemerkt");
   });
 
   function updateFavButton() {
-    const on = !!current && favorites.includes(current.text);
+    const on = !!current && favorites.includes(current);
     const btn = $("favBtn");
-    btn.disabled = !current;
     btn.setAttribute("aria-pressed", String(on));
-    btn.textContent = on ? "★ Gemerkt" : "☆ Merken";
+    btn.textContent = on ? "Gemerkt" : "Merken";
   }
 
+  // ---------- Archiv ----------
+  const tabs = [["tabFav", "favPanel"], ["tabHist", "histPanel"]];
+  tabs.forEach(([tab]) => $(tab).addEventListener("click", () => {
+    tabs.forEach(([t, panel]) => {
+      const on = t === tab;
+      $(t).setAttribute("aria-selected", String(on));
+      $(panel).hidden = !on;
+    });
+  }));
+
   function renderLists() {
-    $("favCount").textContent = `(${favorites.length})`;
+    $("favCount").textContent = favorites.length ? String(favorites.length) : "";
     $("favEmpty").hidden = favorites.length > 0;
-    $("favList").replaceChildren(...favorites.map((t) => listItem(t, "✕", "Entfernen", () => {
+    $("histEmpty").hidden = history.length > 0;
+    $("favList").replaceChildren(...favorites.map((t) => listItem(t, "×", "Entfernen", () => {
       favorites = favorites.filter((f) => f !== t);
       store.set("favorites", favorites);
       renderLists();
       updateFavButton();
     })));
-    $("historyList").replaceChildren(...history.map((t) => listItem(t, "↺", "Nochmal anzeigen", () => {
-      show(t, false);
+    $("historyList").replaceChildren(...history.map((t) => listItem(t, "↑", "Wieder anzeigen", () => {
+      if (busy) return;
       Dreher.splitInThree(t).forEach((p, k) => setReel(k, p));
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      show(t, false);
+      window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
     })));
   }
 
   function listItem(text, icon, label, onClick) {
     const li = document.createElement("li");
     const span = document.createElement("span");
-    span.textContent = `„${text}“`;
+    span.textContent = text;
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = icon;
@@ -300,32 +274,33 @@
     t.textContent = msg;
     t.classList.add("show");
     clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => t.classList.remove("show"), 2200);
+    toast.timer = setTimeout(() => t.classList.remove("show"), 2000);
   }
 
   function vibrate(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) { /* egal */ } }
 
-  // ---------- Ton ----------
+  // ---------- Ton (leise und warm) ----------
   const sound = (() => {
     let ctx = null;
     let on = store.get("sound", true);
     const btn = $("soundBtn");
-    const render = () => { btn.textContent = on ? "🔊 Ton an" : "🔇 Ton aus"; btn.setAttribute("aria-pressed", String(on)); };
+    const render = () => { btn.textContent = on ? "Ton an" : "Ton aus"; btn.setAttribute("aria-pressed", String(on)); };
     render();
     btn.addEventListener("click", () => { on = !on; store.set("sound", on); render(); });
 
-    function beep(freq, dur, type = "square", vol = 0.05, when = 0) {
+    function tone(freq, dur, vol, when = 0, type = "sine") {
       if (!on || !ctx) return;
       const t = ctx.currentTime + when;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = type;
       o.frequency.setValueAtTime(freq, t);
-      g.gain.setValueAtTime(vol, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.connect(g).connect(ctx.destination);
       o.start(t);
-      o.stop(t + dur + 0.02);
+      o.stop(t + dur + 0.05);
     }
 
     return {
@@ -336,25 +311,24 @@
         } catch (e) { ctx = null; }
       },
       ticking() {
-        let delay = 55;
         let stopped = false;
         const tick = () => {
           if (stopped) return;
-          beep(900 + Math.random() * 300, 0.03, "square", 0.025);
-          delay = Math.min(delay * 1.06, 180);
-          setTimeout(tick, delay);
+          tone(1800 + Math.random() * 400, 0.025, 0.012);
+          setTimeout(tick, 95);
         };
         tick();
         return () => { stopped = true; };
       },
-      clunk(k) { beep(180 - k * 30, 0.12, "triangle", 0.18); },
-      ding() { [784, 1047, 1319].forEach((f, i) => beep(f, 0.25, "sine", 0.12, i * 0.09)); },
+      settle(k) { tone(220 - k * 25, 0.25, 0.08, 0, "triangle"); },
+      chime() { [659, 988, 1319].forEach((f, i) => tone(f, 1.2, 0.035, i * 0.07)); },
     };
   })();
 
   // ---------- Start ----------
-  ["Zieh", "den", "Hebel!"].forEach((t, k) => setReel(k, t));
-  $("counter").textContent = String(spins).padStart(3, "0");
+  ["Schieben,", "warten,", "staunen."].forEach((t, k) => setReel(k, t));
+  $("counter").textContent = "Nº " + spins;
+  $("actions").classList.add("hidden");
   renderLists();
   updateFavButton();
 
@@ -363,6 +337,6 @@
     const text = shared.slice(0, 200);
     Dreher.splitInThree(text).forEach((p, k) => setReel(k, p));
     show(text, false);
-    $("note").textContent = "Jemand hat dir diese Weisheit geschickt. Jetzt selbst drehen!";
+    $("note").textContent = "Jemand hat dir diese Weisheit geschickt.";
   }
 })();
