@@ -28,25 +28,27 @@
       <p class="tagline">Redewendungen, fachgerecht verdreht</p>
     </div>
 
-    <section class="stage" id="stage" aria-label="Verdrehte Redewendung">
-      <span class="mark mark-open" aria-hidden="true">„</span>
-      <div class="reels" aria-hidden="true">
-        <div class="reel"><div class="strip"></div></div>
-        <div class="reel reel-accent"><div class="strip"></div></div>
-        <div class="reel"><div class="strip"></div></div>
-      </div>
-      <span class="mark mark-close" aria-hidden="true">“</span>
-      <p class="sr-only" id="phrase" aria-live="polite"></p>
-    </section>
+    <div class="machine">
+      <section class="stage" id="stage" aria-label="Verdrehte Redewendung">
+        <span class="mark mark-open" aria-hidden="true">„</span>
+        <div class="reels" aria-hidden="true">
+          <div class="reel"><div class="strip"></div></div>
+          <div class="reel reel-accent"><div class="strip"></div></div>
+          <div class="reel"><div class="strip"></div></div>
+        </div>
+        <span class="mark mark-close" aria-hidden="true">“</span>
+        <p class="sr-only" id="phrase" aria-live="polite"></p>
+      </section>
 
-    <p class="status" id="note">&nbsp;</p>
-
-    <div class="slider" id="slider" role="button" tabindex="0" aria-label="Zum Drehen schieben">
-      <span class="slider-label" id="sliderLabel">Zum Drehen schieben</span>
-      <div class="slider-knob" id="sliderThumb" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h13m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="lever" id="lever" role="button" tabindex="0" aria-label="Hebel ziehen – neue Redewendung drehen">
+        <div class="lever-track"></div>
+        <div class="lever-arm" id="leverArm"></div>
+        <div class="lever-pivot"></div>
+        <div class="lever-knob" id="leverKnob"></div>
       </div>
     </div>
+
+    <p class="status" id="note">&nbsp;</p>
 
     <div class="actions" id="actions">
       <button type="button" class="pill" id="shareBtn">Teilen</button>

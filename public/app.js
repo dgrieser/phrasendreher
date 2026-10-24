@@ -148,54 +148,114 @@
     }
   }
 
-  // ---------- Schieberegler ----------
-  const slider = $("slider");
-  const knob = $("sliderThumb");
-  const label = $("sliderLabel");
-  const travel = () => slider.clientWidth - knob.offsetWidth - 14;
+  // ---------- Hebel ----------
+  // Der Knauf folgt frei dem Finger. Kurz vor dem Anschlag löst er aus und schnellt zurück.
+  const lever = $("lever");
+  const knob = $("leverKnob");
+  const arm = $("leverArm");
+  const TRIGGER = 0.9;
+  let pos = 0;          // 0 = oben, 1 = unten
+  let spring = null;
 
-  function moveKnob(d, max) {
-    knob.style.transform = `translateX(${d}px)`;
-    label.style.opacity = String(1 - d / max);
+  function geometry() {
+    const h = lever.clientHeight;
+    const k = knob.offsetHeight;
+    return { top: k / 2, bottom: h - k / 2, pivot: h / 2 };
   }
-  function snapBack(from) {
-    knob.animate([{ transform: `translateX(${from}px)` }, { transform: "translateX(0)" }],
-      { duration: 520, easing: "cubic-bezier(.3, 1.25, .5, 1)" });
-    knob.style.transform = "";
-    label.style.opacity = "";
+
+  function renderLever(p) {
+    pos = p;
+    const g = geometry();
+    const y = g.top + p * (g.bottom - g.top);
+    // Der Knauf kommt in der Mitte auf uns zu – wie ein echter Hebel, der nach vorn kippt.
+    const scale = 1 + 0.22 * Math.sin(Math.max(0, Math.min(1, p)) * Math.PI);
+    knob.style.transform = `translateY(${y - knob.offsetHeight / 2}px) scale(${scale})`;
+    arm.style.top = Math.min(y, g.pivot) + "px";
+    arm.style.height = Math.abs(y - g.pivot) + "px";
   }
-  function glideAndSpin(from, max) {
-    knob.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${max}px)` }],
-      { duration: reduceMotion ? 1 : 240, easing: "ease-in" })
-      .finished.then(() => { snapBack(max); spin(); });
+
+  function springBack() {
+    if (spring) cancelAnimationFrame(spring);
+    let v = 0;
+    let last = performance.now();
+    const step = (now) => {
+      const dt = Math.min(0.032, (now - last) / 1000);
+      last = now;
+      v += (-260 * pos - 13 * v) * dt;
+      const p = pos + v * dt;
+      renderLever(p);
+      if (Math.abs(p) < 0.001 && Math.abs(v) < 0.01) { renderLever(0); spring = null; return; }
+      spring = requestAnimationFrame(step);
+    };
+    if (reduceMotion) { renderLever(0); return; }
+    spring = requestAnimationFrame(step);
+  }
+
+  function pullAndSpin() {
+    if (busy) return;
+    if (spring) cancelAnimationFrame(spring);
+    const start = performance.now();
+    const from = pos;
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / 260);
+      renderLever(from + (1 - from) * t * t);
+      if (t < 1) requestAnimationFrame(step);
+      else release();
+    };
+    requestAnimationFrame(step);
+  }
+
+  function release() {
+    vibrate(25);
+    sound.clack();
+    springBack();
+    spin();
   }
 
   let drag = null;
-  slider.addEventListener("pointerdown", (e) => {
+  lever.addEventListener("pointerdown", (e) => {
     if (busy) return;
-    drag = { x: e.clientX, t: Date.now(), d: 0, max: travel() };
-    slider.setPointerCapture(e.pointerId);
+    if (spring) { cancelAnimationFrame(spring); spring = null; }
+    const g = geometry();
+    const knobY = g.top + pos * (g.bottom - g.top);
+    const rect = lever.getBoundingClientRect();
+    const grabbedKnob = Math.abs(e.clientY - rect.top - knobY) < knob.offsetHeight;
+    // Den Knauf greift man, wo man ihn anfasst; daneben springt er unter den Finger.
+    drag = { offset: grabbedKnob ? e.clientY - rect.top - knobY : 0, y: e.clientY, t: Date.now(), moved: 0, rect, g };
+    lever.setPointerCapture(e.pointerId);
+    lever.classList.add("dragging");
   });
-  slider.addEventListener("pointermove", (e) => {
+  lever.addEventListener("pointermove", (e) => {
     if (!drag) return;
-    drag.d = Math.max(0, Math.min(drag.max, e.clientX - drag.x));
-    moveKnob(drag.d, drag.max);
+    const { rect, g, offset } = drag;
+    const p = (e.clientY - rect.top - offset - g.top) / (g.bottom - g.top);
+    const clamped = Math.max(0, Math.min(1, p));
+    drag.moved = Math.max(drag.moved, Math.abs(e.clientY - drag.y));
+    renderLever(clamped);
+    if (clamped >= TRIGGER) {
+      drag = null;
+      lever.classList.remove("dragging");
+      renderLever(1);
+      release();
+    }
   });
-  slider.addEventListener("pointerup", () => {
+  const endDrag = () => {
     if (!drag) return;
-    const { d, max, t } = drag;
+    const tapped = drag.moved < 6 && Date.now() - drag.t < 350;
     drag = null;
-    const tapped = d < 6 && Date.now() - t < 400;
-    if (tapped || d > max * 0.7) glideAndSpin(d, max);
-    else snapBack(d);
-  });
-  slider.addEventListener("pointercancel", () => { if (drag) { snapBack(drag.d); drag = null; } });
-  slider.addEventListener("keydown", (e) => {
-    if ((e.key === "Enter" || e.key === " ") && !busy) { e.preventDefault(); glideAndSpin(0, travel()); }
+    lever.classList.remove("dragging");
+    if (tapped) pullAndSpin();
+    else springBack();
+  };
+  lever.addEventListener("pointerup", endDrag);
+  lever.addEventListener("pointercancel", endDrag);
+  lever.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && !busy) { e.preventDefault(); pullAndSpin(); }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === " " && e.target === body && !busy) { e.preventDefault(); glideAndSpin(0, travel()); }
+    if (e.key === " " && e.target === body && !busy) { e.preventDefault(); pullAndSpin(); }
   });
+  window.addEventListener("resize", () => renderLever(pos));
 
   // ---------- Teilen & Merken ----------
   $("shareBtn").addEventListener("click", async () => {
@@ -320,13 +380,15 @@
         tick();
         return () => { stopped = true; };
       },
+      clack() { tone(140, 0.12, 0.12, 0, "triangle"); tone(90, 0.18, 0.08, 0.04, "sine"); },
       settle(k) { tone(220 - k * 25, 0.25, 0.08, 0, "triangle"); },
       chime() { [659, 988, 1319].forEach((f, i) => tone(f, 1.2, 0.035, i * 0.07)); },
     };
   })();
 
   // ---------- Start ----------
-  ["Schieben,", "warten,", "staunen."].forEach((t, k) => setReel(k, t));
+  ["Hebel ziehen,", "warten,", "staunen."].forEach((t, k) => setReel(k, t));
+  renderLever(0);
   $("counter").textContent = "Nº " + spins;
   $("actions").classList.add("hidden");
   renderLists();
