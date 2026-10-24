@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Phrasendreher</title>
+  <meta name="description" content="Der einarmige Bandit für verdrehte Redewendungen. Hebel ziehen, Weisheit gewinnen.">
+  <meta name="theme-color" content="#1a0a05">
+  <meta property="og:title" content="Phrasendreher">
+  <meta property="og:description" content="Der einarmige Bandit für verdrehte Redewendungen.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='8' y='8' width='84' height='84' rx='14' fill='%235a1a10' stroke='%23d9a945' stroke-width='6'/><path d='M50 22 64 50 50 78 36 50Z' fill='%23b3261e'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rokkitt:wght@500;700;800;900&family=Libre+Caslon+Text:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bokeh" id="bokeh" aria-hidden="true"></div>
+
+  <header class="top">
+    <button type="button" class="link" id="soundBtn" aria-pressed="true">Ton an</button>
+  </header>
+
+  <main>
+    <div class="machine">
+      <div class="cabinet">
+        <div class="crown brass-rim">
+          <div class="wood crown-wood">
+            <span class="bar" aria-hidden="true"></span>
+            <h1 class="plate brass">Phrasendreher</h1>
+            <span class="bar" aria-hidden="true"></span>
+          </div>
+        </div>
+
+        <div class="body brass-rim">
+          <div class="wood body-wood">
+            <div class="bezel brass">
+              <div class="window" aria-hidden="true">
+                <div class="reel"><div class="drum"></div></div>
+                <div class="reel"><div class="drum"></div></div>
+                <div class="reel"><div class="drum"></div></div>
+                <div class="glass"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="base brass-rim">
+          <div class="wood base-wood">
+            <div class="rail" aria-hidden="true">
+              <span class="rivet brass"></span>
+              <span class="rod brass"></span>
+              <span class="gem brass"></span>
+              <span class="rod brass"></span>
+              <span class="rivet brass"></span>
+            </div>
+            <p class="status brass" id="note">Hebel ziehen</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="lever" id="lever" role="button" tabindex="0" aria-label="Hebel ziehen – neue Redewendung drehen">
+        <div class="lever-mount brass"></div>
+        <div class="lever-arm" id="leverArm">
+          <div class="lever-stick"><span class="collar"></span></div>
+        </div>
+        <div class="lever-hub"></div>
+        <div class="lever-ball" id="leverBall"></div>
+      </div>
+    </div>
+
+    <p class="sr-only" id="phrase" aria-live="polite"></p>
+
+    <div class="actions" id="actions">
+      <button type="button" class="button brass" id="shareBtn">Teilen</button>
+      <button type="button" class="button brass" id="favBtn" aria-pressed="false">Merken</button>
+    </div>
+
+    <section class="archive">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" class="tab" id="tabFav" aria-selected="true" aria-controls="favPanel">Gemerkt <span id="favCount"></span></button>
+        <button type="button" role="tab" class="tab" id="tabHist" aria-selected="false" aria-controls="histPanel">Zuletzt</button>
+      </div>
+      <div id="favPanel" role="tabpanel">
+        <ol class="list" id="favList"></ol>
+        <p class="empty" id="favEmpty">Noch nichts gemerkt. Da liegt der Hase im Kettenhemd.</p>
+      </div>
+      <div id="histPanel" role="tabpanel" hidden>
+        <ol class="list" id="historyList"></ol>
+        <p class="empty" id="histEmpty">Noch nichts gedreht.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>Alle Weisheiten ohne Gewähr</footer>
+
+  <div class="measure" id="measure" aria-hidden="true"></div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="redewendungen.js"></script>
+  <script src="dreher.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
