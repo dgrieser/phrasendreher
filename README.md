@@ -50,6 +50,9 @@ verwendet (OpenAI-kompatible API). Nötig sind nur API-Key und Modell, alles and
 | `LLM_MAX_TOKENS` | `4096` | inkl. Denk-Tokens |
 | `LLM_TIMEOUT_MS` | `45000` | danach greift die Notlösung |
 | `TEST_PAGE` | `true` | Testseite `/test` an/aus |
+| `RATE_LIMIT_SPIN` | `20/min` | Anfragen pro IP an den Automaten (`/api/dreh`); `off` schaltet ab |
+| `RATE_LIMIT_TEST` | `10/10min` | Läufe pro IP im Testlabor (`/api/test`); `off` schaltet ab |
+| `TRUST_PROXY` | `true` | IP aus `X-Forwarded-For` lesen (hinter einem Proxy wie bei mittwald); ohne Proxy auf `false` setzen |
 | `PORT` | `8080` | |
 
 ## Wie wird verdreht?
@@ -67,5 +70,12 @@ Unter `/test` lassen sich Prompt und Modell ausprobieren: zwei Redewendungen wä
 den System-Prompt bearbeiten und zusehen, wie das Modell live denkt und antwortet. Die Änderungen am
 Prompt gelten nur für diesen Testlauf – dauerhaft wird er in `server/llm.js` geändert.
 Mit `TEST_PAGE=false` ist die Seite abgeschaltet.
+
+## Ratenbegrenzung
+
+Jede IP darf den Automaten und das Testlabor nur begrenzt oft nutzen (Formate wie `30/min`, `5/10s`, `100/h`).
+Wird die Grenze erreicht, antwortet der Server mit `429` und `Retry-After`. Der Automat dreht dann trotzdem –
+mit der Handmischung des Mischmotors statt des LLM –, das Testlabor zeigt die Wartezeit an.
+Die Zähler liegen im Speicher und gelten pro Container-Instanz.
 
 Neue Redewendungen: einfach eine Zeile in `public/redewendungen.js` ergänzen.

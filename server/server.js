@@ -5,11 +5,29 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { loadConfig, combine, combineStream, userMessage, SYSTEM_PROMPT } = require("./llm");
+const { parse, createLimiter, clientIp } = require("./ratelimit");
 
 const PUBLIC = path.join(__dirname, "..", "public");
 const PORT = Number(process.env.PORT) || 8080;
 const config = loadConfig();
 const TEST_PAGE = !/^(0|false|no|off)$/i.test(process.env.TEST_PAGE || "");
+const TRUST_PROXY = !/^(0|false|no|off)$/i.test(process.env.TRUST_PROXY || "");
+
+// Ratenbegrenzung pro IP – schützt vor allem das LLM-Kontingent.
+const limits = {
+  dreh: parse(process.env.RATE_LIMIT_SPIN, "20/min"),
+  test: parse(process.env.RATE_LIMIT_TEST, "10/10min"),
+};
+const limiters = Object.fromEntries(Object.entries(limits).map(([k, rule]) => [k, rule ? createLimiter(rule) : () => 0]));
+
+// true = weiter; sonst ist die 429-Antwort schon verschickt.
+function allow(kind, req, res) {
+  const wait = limiters[kind](clientIp(req, TRUST_PROXY));
+  if (!wait) return true;
+  res.setHeader("Retry-After", String(wait));
+  sendJson(res, 429, { error: `Zu viele Anfragen – bitte in ${wait} s erneut versuchen.`, retryAfter: wait });
+  return false;
+}
 
 // Dieselbe Liste und derselbe Mischmotor wie im Browser.
 global.window = {};
@@ -110,9 +128,9 @@ function serveStatic(req, res) {
 }
 
 const server = http.createServer((req, res) => {
-  if (req.url === "/api/dreh" && req.method === "POST") return void dreh(res);
+  if (req.url === "/api/dreh" && req.method === "POST") return void (allow("dreh", req, res) && dreh(res));
   if (req.url === "/healthz") return sendJson(res, 200, { ok: true });
-  if (TEST_PAGE && req.url === "/api/test" && req.method === "POST") return void test(req, res);
+  if (TEST_PAGE && req.url === "/api/test" && req.method === "POST") return void (allow("test", req, res) && test(req, res));
   if (TEST_PAGE && req.url === "/api/prompt") {
     return sendJson(res, 200, {
       system: SYSTEM_PROMPT,
@@ -131,6 +149,8 @@ server.listen(PORT, () => {
   console.log(config.apiKey
     ? `LLM: ${config.model} @ ${config.baseUrl} (Thinking: ${config.thinking ? config.reasoningEffort : "aus"})`
     : "Kein LLM_API_KEY gesetzt – es dreht nur der eingebaute Mischmotor.");
+  const show = (r) => (r ? `${r.limit} pro ${r.windowMs / 1000} s` : "aus");
+  console.log(`Ratenbegrenzung: Automat ${show(limits.dreh)}, Testlabor ${show(limits.test)} (Proxy-IP: ${TRUST_PROXY ? "ja" : "nein"})`);
 });
 
 const stop = () => server.close(() => process.exit(0));
