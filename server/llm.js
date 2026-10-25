@@ -43,11 +43,37 @@ Beispiele:
 „Mit Kanonen auf Spatzen schießen“ + „Die Spatzen pfeifen es von den Dächern“ → Mit Kanonen von den Dächern pfeifen
 „Den Kopf in den Sand stecken“ + „Den Hut in den Ring werfen“ → Den Kopf in den Ring werfen`;
 
-function buildMessages(a, b) {
+const userMessage = (a, b) => `„${a}“ + „${b}“ →`;
+
+function buildMessages(a, b, system = SYSTEM_PROMPT) {
   return [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: `„${a}“ + „${b}“ →` },
+    { role: "system", content: system },
+    { role: "user", content: userMessage(a, b) },
   ];
+}
+
+function buildBody(a, b, cfg, system) {
+  return {
+    model: cfg.model,
+    messages: buildMessages(a, b, system),
+    temperature: cfg.temperature,
+    top_p: cfg.topP,
+    top_k: cfg.topK,
+    presence_penalty: cfg.presencePenalty,
+    max_tokens: cfg.maxTokens,
+    chat_template_kwargs: cfg.thinking
+      ? { enable_thinking: true, reasoning_effort: cfg.reasoningEffort }
+      : { enable_thinking: false },
+  };
+}
+
+function request(body, cfg, signal) {
+  return fetch(cfg.baseUrl + "/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.apiKey },
+    body: JSON.stringify(body),
+    signal,
+  });
 }
 
 // Entfernt Anführungszeichen, Pfeile, Denk-Reste und alles nach der ersten Zeile.
@@ -61,24 +87,7 @@ function clean(text) {
 
 async function combine(a, b, cfg = loadConfig()) {
   if (!cfg.apiKey) throw new Error("LLM_API_KEY fehlt");
-  const body = {
-    model: cfg.model,
-    messages: buildMessages(a, b),
-    temperature: cfg.temperature,
-    top_p: cfg.topP,
-    top_k: cfg.topK,
-    presence_penalty: cfg.presencePenalty,
-    max_tokens: cfg.maxTokens,
-    chat_template_kwargs: cfg.thinking
-      ? { enable_thinking: true, reasoning_effort: cfg.reasoningEffort }
-      : { enable_thinking: false },
-  };
-  const res = await fetch(cfg.baseUrl + "/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.apiKey },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(cfg.timeoutMs),
-  });
+  const res = await request(buildBody(a, b, cfg), cfg, AbortSignal.timeout(cfg.timeoutMs));
   if (!res.ok) throw new Error(`LLM antwortet mit HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
   const choice = data.choices && data.choices[0];
@@ -87,4 +96,40 @@ async function combine(a, b, cfg = loadConfig()) {
   return text;
 }
 
-module.exports = { loadConfig, combine, clean, SYSTEM_PROMPT };
+// Wie combine(), aber gestreamt: meldet Denk- und Antwort-Häppchen einzeln über onEvent.
+// Für die Testseite – dort darf der System-Prompt überschrieben werden.
+async function combineStream(a, b, { system, signal } = {}, onEvent, cfg = loadConfig()) {
+  if (!cfg.apiKey) throw new Error("LLM_API_KEY fehlt");
+  const body = { ...buildBody(a, b, cfg, system || SYSTEM_PROMPT), stream: true, stream_options: { include_usage: true } };
+  const res = await request(body, cfg, signal);
+  if (!res.ok) throw new Error(`LLM antwortet mit HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let finish = null;
+  let usage = null;
+  for await (const chunk of res.body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let nl;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") continue;
+      let json;
+      try { json = JSON.parse(data); } catch (e) { continue; }
+      if (json.usage) usage = json.usage;
+      const choice = json.choices && json.choices[0];
+      if (!choice) continue;
+      if (choice.finish_reason) finish = choice.finish_reason;
+      const delta = choice.delta || {};
+      const reasoning = delta.reasoning_content || delta.reasoning;
+      if (reasoning) onEvent({ type: "reasoning", text: reasoning });
+      if (delta.content) { content += delta.content; onEvent({ type: "content", text: delta.content }); }
+    }
+  }
+  return { raw: content, text: clean(content), finish, usage };
+}
+
+module.exports = { loadConfig, combine, combineStream, clean, userMessage, SYSTEM_PROMPT };

@@ -49,6 +49,7 @@ verwendet (OpenAI-kompatible API). Nötig sind nur API-Key und Modell, alles and
 | `LLM_PRESENCE_PENALTY` | `0.0` (ohne Thinking `1.5`) | |
 | `LLM_MAX_TOKENS` | `4096` | inkl. Denk-Tokens |
 | `LLM_TIMEOUT_MS` | `45000` | danach greift die Notlösung |
+| `TEST_PAGE` | `true` | Testseite `/test` an/aus |
 | `PORT` | `8080` | |
 
 ## Wie wird verdreht?
@@ -59,5 +60,12 @@ verwendet (OpenAI-kompatible API). Nötig sind nur API-Key und Modell, alles and
    (Prompt in `server/llm.js`).
 3. Die Walzen drehen, bis die Antwort da ist. Fällt das LLM aus, nimmt der Server die eigene Mischung des
    Mischmotors – es kommt also immer etwas heraus.
+
+## Testlabor
+
+Unter `/test` lassen sich Prompt und Modell ausprobieren: zwei Redewendungen wählen (oder würfeln),
+den System-Prompt bearbeiten und zusehen, wie das Modell live denkt und antwortet. Die Änderungen am
+Prompt gelten nur für diesen Testlauf – dauerhaft wird er in `server/llm.js` geändert.
+Mit `TEST_PAGE=false` ist die Seite abgeschaltet.
 
 Neue Redewendungen: einfach eine Zeile in `public/redewendungen.js` ergänzen.
