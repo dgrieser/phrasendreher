@@ -377,20 +377,21 @@ body.spinning .lever { cursor: progress; }
 .lever:focus-visible { outline: none; }
 .lever:focus-visible .lever-ball { outline: 2px solid #f1d38a; outline-offset: 4px; }
 
-/* 3D-Hebel (public/lever3d.js): Leinwand rechts neben dem Gehäuse; das Hebel-Element bleibt die Griffläche */
-.lever3d {
+/* 3D-Automat (public/machine3d.js): eine Leinwand über dem ganzen Automaten. Das HTML-Gerüst bleibt
+   unsichtbar stehen – es liefert die Maße, und das Hebel-Element bleibt die Griffläche. */
+.machine3d {
   position: absolute;
   z-index: 2;
   top: -40px;
-  bottom: -40px;
-  right: -16px;
-  /* reicht über die Gehäusekante, damit der Knauf beim Ziehen nicht abgeschnitten wird */
-  width: calc(var(--lever-col) + 110px);
-  height: calc(100% + 80px);
+  left: -16px;
+  width: calc(100% + 32px);
+  height: calc(100% + 110px);
   pointer-events: none;
 }
+.machine.webgl .cabinet { visibility: hidden; }
 .lever.webgl > * { visibility: hidden; }
 .lever.webgl { z-index: 3; }
+.lever.webgl:focus-visible { outline: 2px solid #f1d38a; outline-offset: 2px; border-radius: 10px; }
 
 /* Der Automat ruckelt kurz, wenn der Hebel einrastet oder anschlägt – samt Hebel */
 .machine.shake { animation: shake .32s cubic-bezier(.3, .7, .4, 1); }

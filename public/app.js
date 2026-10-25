@@ -101,6 +101,8 @@
     setFace(i, text) {
       const f = this.faces[i];
       f.text = text;
+      // 3D-Automat (public/machine3d.js) zeichnet die Seite selbst
+      if (window.Machine3D) { window.Machine3D.face(this.k, i, text); return; }
       f.el.classList.toggle("blank", !text);
       f.txt.textContent = text || "♦";
       f.txt.style.fontSize = fitSize(text || "♦", this.textW, this.F * 0.6, this.F * 0.42) + "px";
@@ -118,6 +120,7 @@
     }
 
     render() {
+      if (window.Machine3D) { window.Machine3D.invalidate(); return; }
       const half = STEP / 2;
       this.faces.forEach((f, i) => {
         const rel = mod(i * STEP + this.angle + 180, 360) - 180;
@@ -209,6 +212,7 @@
   const PERSPECTIVE = 440;
   const SPEEDS = reduceMotion ? [200, 200, 200] : [820, 900, 760];
   const drums = [...document.querySelectorAll(".reel")].map((reel, k) => new Drum(reel, k));
+  window.Phrasendreher = { drums };
 
   let resizeTimer;
   window.addEventListener("resize", () => {
@@ -303,8 +307,8 @@
     }
 
     function render() {
-      // 3D-Modell (public/lever3d.js), falls WebGL verfügbar ist – sonst zeichnet der CSS-Hebel unten.
-      if (window.Lever3D) window.Lever3D.render(theta);
+      // 3D-Modell (public/machine3d.js), falls WebGL verfügbar ist – sonst zeichnet der CSS-Hebel.
+      if (window.Machine3D) { window.Machine3D.lever(theta); return; }
       const rad = (theta * Math.PI) / 180;
       el.classList.toggle("forward", theta > 55);
       arm.style.transform = `rotateX(${-theta}deg)`;
@@ -337,7 +341,7 @@
     }
 
     function knobY(th) {
-      return window.Lever3D ? window.Lever3D.knobClient(th).y : el.getBoundingClientRect().top + project(th).y;
+      return window.Machine3D ? window.Machine3D.knobClient(th).y : el.getBoundingClientRect().top + project(th).y;
     }
 
     function ratchet() {
