@@ -34,20 +34,19 @@ hinterlegen (*Settings → Secrets and variables → Actions*). Ohne Secret wird
 ## Konfiguration (Umgebungsvariablen)
 
 Standardmäßig wird [mittwald AI Hosting](https://developer.mittwald.de/de/docs/v2/platform/aihosting/models/qwen3-8-27b-nvfp4)
-verwendet (OpenAI-kompatible API). Nötig sind nur API-Key und Modell. Alle übrigen Werte folgen ohne eigene Angabe
-den mittwald-Empfehlungen für das gewählte Modell (Katalog in `server/models.js`).
+verwendet (OpenAI-kompatible API). Nötig sind nur API-Key und Modell, alles andere hat sinnvolle Standardwerte.
 
 | Variable | Standard | Bedeutung |
 |---|---|---|
 | `LLM_API_KEY` | – | API-Key (ohne Key dreht nur der eingebaute Mischmotor) |
 | `LLM_MODEL` | `Qwen3.8-27B-NVFP4` | Modellname |
 | `LLM_BASE_URL` | `https://llm.aihosting.mittwald.de/v1` | Beliebiger OpenAI-kompatibler Endpunkt |
-| `LLM_ENABLE_THINKING` | je nach Modell | Thinking an/aus, sofern das Modell es erlaubt |
-| `LLM_REASONING_EFFORT` | je nach Modell | Denkstufe, z. B. `low`/`medium`/`xhigh` (Qwen3.8) oder `low`/`medium`/`high` (gpt-oss) |
-| `LLM_TEMPERATURE` | Empfehlung des Modells | |
-| `LLM_TOP_P` | Empfehlung des Modells | |
-| `LLM_TOP_K` | Empfehlung des Modells | |
-| `LLM_PRESENCE_PENALTY` | Empfehlung des Modells | |
+| `LLM_ENABLE_THINKING` | `true` | Thinking an/aus (`chat_template_kwargs.enable_thinking`) |
+| `LLM_REASONING_EFFORT` | `medium` | `low`, `medium` oder `xhigh` |
+| `LLM_TEMPERATURE` | `1.0` (ohne Thinking `0.7`) | |
+| `LLM_TOP_P` | `0.95` (ohne Thinking `0.8`) | |
+| `LLM_TOP_K` | `20` | |
+| `LLM_PRESENCE_PENALTY` | `0.0` (ohne Thinking `1.5`) | |
 | `LLM_MAX_TOKENS` | `4096` | inkl. Denk-Tokens |
 | `LLM_TIMEOUT_MS` | `45000` | danach greift die Notlösung |
 | `TEST_PAGE` | `true` | Testseite `/test` an/aus |
@@ -70,7 +69,8 @@ den mittwald-Empfehlungen für das gewählte Modell (Katalog in `server/models.j
 Unter `/test` lassen sich Prompt und Modell ausprobieren: zwei Redewendungen wählen (oder würfeln),
 den System-Prompt bearbeiten und zusehen, wie das Modell live denkt und antwortet. Die Änderungen am
 Prompt gelten nur für diesen Testlauf – dauerhaft wird er in `server/llm.js` geändert.
-Modell, Profil, Thinking, Denkstufe und Sampling-Parameter sind dort wählbar. Die Modellliste kommt live aus
+Modell, Profil, Thinking, Denkstufe und Sampling-Parameter sind dort wählbar – nur für den Testlauf; der Automat
+bleibt bei den Umgebungsvariablen. Die Modellliste kommt live aus
 `/v1/models` (was der Key darf) und der mittwald-API (Anzeigename, Reifegrad, Token-Faktor, Doku-Link). Wie ein
 Modell sein Denken steuert und welche Einstellungen mittwald empfiehlt, steht in `server/models.js` – die Profile
 im Testlabor sind genau diese Empfehlungen.

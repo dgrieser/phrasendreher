@@ -92,7 +92,7 @@ async function listModels(cfg) {
     available = (data.data || []).filter((m) => !m.mode || m.mode === "chat");
   } catch (err) {
     console.error("Modellliste nicht abrufbar:", err.message);
-    available = [{ id: cfg.settings.model }];
+    available = [{ id: cfg.model }];
   }
   const meta = new Map();
   if (/mittwald\.de/.test(cfg.baseUrl)) {
@@ -118,7 +118,7 @@ async function listModels(cfg) {
         profiles,
       };
     })
-    .sort((x, y) => (x.id === cfg.settings.model ? -1 : y.id === cfg.settings.model ? 1 : x.name.localeCompare(y.name)));
+    .sort((x, y) => (x.id === cfg.model ? -1 : y.id === cfg.model ? 1 : x.name.localeCompare(y.name)));
   cache = { at: Date.now(), models };
   return models;
 }

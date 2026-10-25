@@ -2,32 +2,29 @@
 "use strict";
 
 const env = process.env;
-const { describe, requestFields } = require("./models");
+const { requestFields } = require("./models");
 
 const num = (v, fallback) => (v === undefined || v === "" ? fallback : Number(v));
 const bool = (v, fallback) => (v === undefined || v === "" ? fallback : !/^(0|false|no|off)$/i.test(v));
 
-// Ohne eigene Werte gelten die von mittwald empfohlenen Einstellungen des gewählten Modells
-// (passendes Profil aus server/models.js); gesetzte Umgebungsvariablen haben Vorrang.
 function loadConfig() {
-  const model = env.LLM_MODEL || "Qwen3.8-27B-NVFP4";
-  const { reasoning, profiles } = describe(model);
-  const thinking = bool(env.LLM_ENABLE_THINKING, reasoning.defaultOn !== false);
-  const p = profiles.find((x) => !!x.thinking === thinking) || profiles[0] || {};
+  const thinking = bool(env.LLM_ENABLE_THINKING, true);
+  // Empfohlene Sampling-Werte laut mittwald-Doku, je nach Thinking-Modus.
+  const d = thinking
+    ? { temperature: 1.0, top_p: 0.95, top_k: 20, presence_penalty: 0.0 }
+    : { temperature: 0.7, top_p: 0.8, top_k: 20, presence_penalty: 1.5 };
   return {
     apiKey: env.LLM_API_KEY || "",
     baseUrl: (env.LLM_BASE_URL || "https://llm.aihosting.mittwald.de/v1").replace(/\/+$/, ""),
+    model: env.LLM_MODEL || "Qwen3.8-27B-NVFP4",
+    thinking,
+    reasoningEffort: env.LLM_REASONING_EFFORT || "medium",
+    temperature: num(env.LLM_TEMPERATURE, d.temperature),
+    topP: num(env.LLM_TOP_P, d.top_p),
+    topK: num(env.LLM_TOP_K, d.top_k),
+    presencePenalty: num(env.LLM_PRESENCE_PENALTY, d.presence_penalty),
+    maxTokens: num(env.LLM_MAX_TOKENS, 4096),
     timeoutMs: num(env.LLM_TIMEOUT_MS, 45000),
-    settings: {
-      model,
-      thinking,
-      effort: env.LLM_REASONING_EFFORT || p.effort || "medium",
-      temperature: num(env.LLM_TEMPERATURE, p.temperature),
-      top_p: num(env.LLM_TOP_P, p.top_p),
-      top_k: num(env.LLM_TOP_K, p.top_k),
-      presence_penalty: num(env.LLM_PRESENCE_PENALTY, p.presence_penalty),
-      max_tokens: num(env.LLM_MAX_TOKENS, 4096),
-    },
   };
 }
 
@@ -57,8 +54,39 @@ function buildMessages(a, b, system = SYSTEM_PROMPT) {
   ];
 }
 
-function buildBody(a, b, settings, system) {
+// Automat: Anfrage aus der Server-Konfiguration (Umgebungsvariablen).
+function buildBody(a, b, cfg, system) {
+  return {
+    model: cfg.model,
+    messages: buildMessages(a, b, system),
+    temperature: cfg.temperature,
+    top_p: cfg.topP,
+    top_k: cfg.topK,
+    presence_penalty: cfg.presencePenalty,
+    max_tokens: cfg.maxTokens,
+    chat_template_kwargs: cfg.thinking
+      ? { enable_thinking: true, reasoning_effort: cfg.reasoningEffort }
+      : { enable_thinking: false },
+  };
+}
+
+// Testlabor: Anfrage aus den gewählten Einstellungen, passend zur Denksteuerung des Modells.
+function buildTestBody(a, b, settings, system) {
   return { model: settings.model, messages: buildMessages(a, b, system), ...requestFields(settings) };
+}
+
+// Die Server-Konfiguration im Format des Testlabors – für das Profil „Wie der Automat“.
+function serverSettings(cfg) {
+  return {
+    model: cfg.model,
+    thinking: cfg.thinking,
+    effort: cfg.reasoningEffort,
+    temperature: cfg.temperature,
+    top_p: cfg.topP,
+    top_k: cfg.topK,
+    presence_penalty: cfg.presencePenalty,
+    max_tokens: cfg.maxTokens,
+  };
 }
 
 function request(body, cfg, signal) {
@@ -81,7 +109,7 @@ function clean(text) {
 
 async function combine(a, b, cfg = loadConfig()) {
   if (!cfg.apiKey) throw new Error("LLM_API_KEY fehlt");
-  const res = await request(buildBody(a, b, cfg.settings), cfg, AbortSignal.timeout(cfg.timeoutMs));
+  const res = await request(buildBody(a, b, cfg), cfg, AbortSignal.timeout(cfg.timeoutMs));
   if (!res.ok) throw new Error(`LLM antwortet mit HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
   const choice = data.choices && data.choices[0];
@@ -94,7 +122,7 @@ async function combine(a, b, cfg = loadConfig()) {
 // Für die Testseite – dort darf der System-Prompt überschrieben werden.
 async function combineStream(a, b, { system, signal, settings } = {}, onEvent, cfg = loadConfig()) {
   if (!cfg.apiKey) throw new Error("LLM_API_KEY fehlt");
-  const body = { ...buildBody(a, b, settings || cfg.settings, system || SYSTEM_PROMPT), stream: true, stream_options: { include_usage: true } };
+  const body = { ...buildTestBody(a, b, settings || serverSettings(cfg), system || SYSTEM_PROMPT), stream: true, stream_options: { include_usage: true } };
   const res = await request(body, cfg, signal);
   if (!res.ok) throw new Error(`LLM antwortet mit HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const decoder = new TextDecoder();
@@ -126,4 +154,4 @@ async function combineStream(a, b, { system, signal, settings } = {}, onEvent, c
   return { raw: content, text: clean(content), finish, usage };
 }
 
-module.exports = { loadConfig, combine, combineStream, clean, userMessage, SYSTEM_PROMPT };
+module.exports = { loadConfig, serverSettings, combine, combineStream, clean, userMessage, SYSTEM_PROMPT };
