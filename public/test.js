@@ -13,10 +13,20 @@
     $(id).append(...phrases.map((p) => new Option(p, p)));
   }
 
-  function randomPair() {
-    const r = dreher.spin();
-    $("a").value = r.sources[0];
-    $("b").value = r.sources[1];
+  // Dasselbe Paar-Verfahren wie im Automaten (Stapel + passender Partner); ohne Server mischt der Browser.
+  async function randomPair() {
+    let pair = null;
+    try {
+      const res = await fetch("api/pair");
+      if (res.ok) pair = await res.json();
+    } catch (e) { /* Notlösung unten */ }
+    if (!pair) {
+      const r = dreher.spin();
+      pair = { a: r.sources[0], b: r.sources[1], label: "Grammatik" };
+    }
+    $("a").value = pair.a;
+    $("b").value = pair.b;
+    $("pairSource").textContent = "Partner über: " + pair.label;
     updatePreview();
   }
 
@@ -28,8 +38,9 @@
     $("charCount").textContent = $("system").value.length.toLocaleString("de-DE");
   }
 
-  $("a").addEventListener("change", updatePreview);
-  $("b").addEventListener("change", updatePreview);
+  const manualPair = () => { $("pairSource").textContent = "Von Hand gewählt"; updatePreview(); };
+  $("a").addEventListener("change", manualPair);
+  $("b").addEventListener("change", manualPair);
   $("randomBtn").addEventListener("click", randomPair);
   $("system").addEventListener("input", updateCount);
   $("resetBtn").addEventListener("click", () => { $("system").value = defaults.system; updateCount(); });

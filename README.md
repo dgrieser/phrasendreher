@@ -53,17 +53,34 @@ den mittwald-Empfehlungen für das gewählte Modell (Katalog in `server/models.j
 | `TEST_PAGE` | `true` | Testseite `/test` an/aus |
 | `RATE_LIMIT_SPIN` | `20/min` | Anfragen pro IP an den Automaten (`/api/dreh`); `off` schaltet ab |
 | `RATE_LIMIT_TEST` | `10/10min` | Läufe pro IP im Testlabor (`/api/test`); `off` schaltet ab |
+| `PAIR_WEIGHTS` | `meaning:50,image:25,sound:10,grammar:15` | Gewichte der Partner-Quellen (siehe unten) |
 | `TRUST_PROXY` | `true` | IP aus `X-Forwarded-For` lesen (hinter einem Proxy wie bei mittwald); ohne Proxy auf `false` setzen |
 | `PORT` | `8080` | |
 
 ## Wie wird verdreht?
 
-1. Der Mischmotor (`public/dreher.js`) sucht zwei Redewendungen aus `public/redewendungen.js`, die sich gut
-   kombinieren lassen (gleicher Artikel vor einem Substantiv oder ein gemeinsames Gelenkwort wie „in den“).
-2. Der Server (`server/`) schickt beide an das LLM, das daraus eine neue Redewendung macht
+1. **Erste Redewendung:** kommt aus einem gemischten Stapel – jede ist einmal dran, bevor neu gemischt wird.
+   So kommen alle Redewendungen gleich oft vor.
+2. **Zweite Redewendung:** ein Partner, der zur ersten passt (`server/pairs.js`), aus einer von vier Quellen:
+
+   | Quelle | Partner | Woher |
+   |---|---|---|
+   | `meaning` | ähnliche Bedeutung („Nur Bahnhof verstehen“ ↔ „Auf dem Schlauch stehen“) | `server/data/partners.json` |
+   | `image` | ähnliches Bild oder Wort („Auf Granit beißen“ ↔ „Ins Gras beißen“) | `server/data/partners.json` |
+   | `sound` | ähnlicher Klang oder Reim („Sinn“ ↔ „Finn“, „Schnippchen“ ↔ „Schnäppchen“) | Kölner Phonetik, beim Start berechnet |
+   | `grammar` | gleicher Artikel vor einem Substantiv oder gemeinsames Gelenkwort („in den“, „wie“) | Mischmotor `public/dreher.js` |
+
+   Die Quelle wird nach `PAIR_WEIGHTS` gewürfelt – nur unter denen, die für die Redewendung Partner haben.
+   Kürzlich verwendete Paare werden ausgelassen.
+3. Der Server (`server/`) schickt beide an das LLM, das daraus eine neue Redewendung macht
    (Prompt in `server/llm.js`).
-3. Die Walzen drehen, bis die Antwort da ist. Fällt das LLM aus, nimmt der Server die eigene Mischung des
+4. Die Walzen drehen, bis die Antwort da ist. Fällt das LLM aus, nimmt der Server die eigene Mischung des
    Mischmotors – es kommt also immer etwas heraus.
+
+`server/data/partners.json` enthält zu jeder Redewendung eine Umschreibung ihrer Bedeutung (per LLM, von Hand
+korrigiert) und die jeweils zehn nächsten Nachbarn nach Bedeutung und nach Bild (Embeddings mit
+`Qwen3-Embedding-8B`). Erzeugt wird die Datei mit `scripts/build-partners.js` – nach jeder Änderung an der
+Liste, siehe [`AGENT.md`](AGENT.md).
 
 ## Testlabor
 
@@ -83,4 +100,5 @@ Wird die Grenze erreicht, antwortet der Server mit `429` und `Retry-After`. Der 
 mit der Handmischung des Mischmotors statt des LLM –, das Testlabor zeigt die Wartezeit an.
 Die Zähler liegen im Speicher und gelten pro Container-Instanz.
 
-Neue Redewendungen: einfach eine Zeile in `public/redewendungen.js` ergänzen.
+Neue Redewendungen: eine Zeile in `public/redewendungen.js` ergänzen und danach die Partnerdaten aktualisieren
+(`LLM_API_KEY=… node scripts/build-partners.js`, Details in [`AGENT.md`](AGENT.md)).

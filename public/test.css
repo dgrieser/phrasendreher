@@ -412,3 +412,4 @@ footer a:hover { color: var(--text); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 a.ghost { text-decoration: none; }
+#pairSource { margin-top: -10px; }

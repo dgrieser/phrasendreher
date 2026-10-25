@@ -122,7 +122,24 @@
       return null;
     }
 
-    return { spin };
+    // Alle Redewendungen, mit denen sich diese grammatisch verbinden lässt:
+    // gleicher Artikel vor einem anderen Substantiv oder ein gemeinsames Gelenkwort.
+    const byPhrase = new Map(list.map((p) => [p.phrase, p]));
+    function partners(phrase) {
+      const a = byPhrase.get(phrase);
+      if (!a) return [];
+      const out = new Set();
+      a.nouns.forEach((n) => {
+        if (!n.key) return;
+        nounsByKey.get(n.key).forEach((d) => { if (d.p !== a && d.n.word !== n.word) out.add(d.p.phrase); });
+      });
+      a.joints.forEach((i) => {
+        (jointsByWord.get(a.words[i].toLowerCase()) || []).forEach((b) => { if (b.p !== a) out.add(b.p.phrase); });
+      });
+      return [...out];
+    }
+
+    return { spin, partners };
   }
 
   // Zerlegt einen fertigen Satz in drei Walzen-Stücke.

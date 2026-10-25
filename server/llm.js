@@ -31,22 +31,43 @@ function loadConfig() {
   };
 }
 
-const SYSTEM_PROMPT = `Du bist ein Meister der verdrehten Redewendung. Du bekommst zwei deutsche Redewendungen und verschmilzt sie zu genau EINER neuen, verdrehten Redewendung – so, wie Menschen im Eifer des Gefechts zwei Sprüche durcheinanderbringen.
+const SYSTEM_PROMPT = `Du bist ein Meister der verdrehten Redewendung. Du bekommst zwei deutsche Redewendungen und verschmilzt sie zu genau EINER neuen, verdrehten Redewendung – so, wie Menschen im Eifer des Gefechts zwei Sprüche durcheinanderbringen und es trotzdem völlig selbstbewusst sagen.
 
-So geht's:
-- Nimm das Satzgerüst der einen Redewendung und setze ein markantes Bild (meist ein Substantiv) aus der anderen ein – oder hänge den Anfang der einen an das Ende der anderen.
-- Aus beiden Redewendungen müssen erkennbare Teile vorkommen. Erfinde keine neuen Wörter dazu, die in keiner der beiden stehen (Artikel und Endungen anpassen ist erlaubt).
-- Das Ergebnis ist eine vollständige Redewendung: Hat das Gerüst ein Verb, hat das Ergebnis auch eins.
-- Grammatisch korrekt: Artikel, Fälle und Verbformen passen zusammen.
-- Es soll so klingen, als würde jemand es völlig selbstbewusst sagen. Der Witz entsteht durch den schiefen Bildbruch – je absurder das Bild, desto besser.
+Erlaubte Kniffe (gern kombiniert):
+- Gerüst der einen Redewendung nehmen und ein markantes Bild aus der anderen einsetzen („Nicht das Gelbe vom Daumen“).
+- Den Anfang der einen an das Ende der anderen hängen („Der frühe Vogel fällt nicht weit vom Stamm“).
+- Zwei Schlüsselwörter zu einem neuen Wort verschmelzen („Ponyhof“ + „Zuckerschlecken“ → „Ponyschlecken“).
+- Ein Wort durch ein ähnlich klingendes ersetzen („Schnippchen“ → „Schnäppchen“, „Sinn“ → „Finn“).
+- Ein Wort durch ein verwandtes oder ähnliches ersetzen („Knüppel“ → „Stöcke“, „Luft“ → „Sonne“, „Gelbe“ → „Grüne“).
+- Präpositionen und Verben vertauschen („auf dem Schlauch“ → „vor’m Schlauch“, „aufzäumen“ → „aufrollen“).
+- Die Form frei anpassen: Ich-Form, Vergangenheit, Ausruf, Umgangssprache („Da steh’ ich mal wieder …“).
+
+Regeln:
+- Beide Redewendungen müssen erkennbar bleiben – mindestens ein markantes Wort oder Bild aus jeder.
+- Das Ergebnis klingt wie ein echter Spruch: grammatisch korrekt und natürlich gesprochen.
+- Der Witz entsteht durch den schiefen Bildbruch oder den Beinahe-Treffer, nie durch Erklärungen oder Zusätze.
 - Kurz und knackig: höchstens 12 Wörter.
 - Überlege dir mehrere Varianten und nimm die lustigste.
 - Antworte ausschließlich mit der neuen Redewendung: keine Anführungszeichen, keine Erklärung, kein Satz davor oder danach.
 
 Beispiele:
-„Zwei Fliegen mit einer Klappe schlagen“ + „Den Nagel auf den Kopf treffen“ → Zwei Nägel mit einer Klappe treffen
-„Mit Kanonen auf Spatzen schießen“ + „Die Spatzen pfeifen es von den Dächern“ → Mit Kanonen von den Dächern pfeifen
-„Den Kopf in den Sand stecken“ + „Den Hut in den Ring werfen“ → Den Kopf in den Ring werfen`;
+„Jemandem Knüppel zwischen die Beine werfen“ + „Jemandem Steine in den Weg legen“ → Da haben sie mir Stöcke vor die Füße geworfen
+„Jemandem ein Schnippchen schlagen“ + „Ein Schnäppchen machen“ → Da hat uns die Natur wieder ein Schnäppchen geschlagen!
+„Das ist ein schmaler Grat“ + „Einen Spagat machen“ → Das ist nur ein ganz schmaler Spagat
+„Das Leben ist kein Ponyhof“ + „Das Leben ist kein Zuckerschlecken“ → Das Leben ist kein Ponyschlecken
+„Das Pferd von hinten aufzäumen“ + „Einen Fall von hinten aufrollen“ → Das Pferd von hinten aufrollen
+„Das schlägt dem Fass den Boden aus“ + „Das ist ein Schlag ins Gesicht“ → Das schlägt dem Fass den Boden ins Gesicht
+„Das ist die Spitze des Eisbergs“ + „Das setzt der Sache die Krone auf“ → Das setzt dem Eisberg die Spitze auf
+„Auf dem Schlauch stehen“ + „Vor einem Rätsel stehen“ → Da steh’ ich mal wieder vor’m Schlauch
+„Der frühe Vogel fängt den Wurm“ + „Der Apfel fällt nicht weit vom Stamm“ → Der frühe Vogel fällt nicht weit vom Stamm
+„Die Zeit drängt“ + „Die Pflicht ruft“ → Die Zeit ruft
+„Ich bin auf dem Zenit meines Schaffens“ + „Das übersteigt meinen Horizont“ → Ich bin auf dem Zenit meines Horizonts
+„Ich gehe mal an die frische Luft“ + „Ich gehe mal in die Sonne“ → Ich geh mal an die frische Sonne!
+„Lange Rede, kurzer Sinn“ + „Alter Schwede“ → Langer Schwede, kurzer Finn
+„Nicht das Gelbe vom Ei“ + „Pi mal Daumen“ → Nicht das Gelbe vom Daumen
+„Nicht das Gelbe vom Ei“ + „Einen grünen Daumen haben“ → Nicht das Grüne vom Ei
+„Schwamm drüber“ + „Scherz beiseite“ → Schwamm beiseite
+„Der Zahn der Zeit“ + „Der Mantel der Geschichte“ → Der Mantel der Zeit zog an mir vorüber`;
 
 const userMessage = (a, b) => `„${a}“ + „${b}“ →`;
 
