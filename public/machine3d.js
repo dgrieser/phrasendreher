@@ -411,40 +411,54 @@ function init() {
 
   // ---------- Hebel ----------
   const lv = { L: 0, ball: null };
-  function buildLever(L, axleStart) {
+  function buildLever(L, wall) {
     clear(yaw);
     yaw.add(arm);
     clear(arm);
-    // Achse aus der Seitenwand bis durch das Rad, mit Lagerring und Mutter
     const alongX = (geo) => geo.rotateZ(Math.PI / 2);
-    const axleLen = 16 - axleStart;
-    const axle = new THREE.Mesh(alongX(new THREE.CylinderGeometry(6, 6, axleLen, 32)), brass);
-    axle.position.x = axleStart + axleLen / 2;
-    const bearing = new THREE.Mesh(alongX(new THREE.CylinderGeometry(11, 11, 6, 40)), brassDark);
-    bearing.position.x = axleStart + 3;
-    const nut = new THREE.Mesh(alongX(new THREE.CylinderGeometry(8, 8, 7, 6)), brassDark);
-    nut.position.x = 17;
-    yaw.add(axle, bearing, nut);
+    // wall: x der Seitenwand relativ zum Drehpunkt (negativ). Der Drehpunkt liegt mitten in der Gehäusetiefe.
 
-    // Rad mit gerundeter Kante, Schrauben und Deckel auf der Außenseite – dreht sich mit dem Hebel
-    const profile = [[0, -6], [16, -6], [19, -4.5], [20, 0], [19, 4.5], [16, 6], [0, 6]].map(([r, x]) => new THREE.Vector2(r, x));
-    arm.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 56).rotateZ(-Math.PI / 2), brass));
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      const bolt = new THREE.Mesh(alongX(new THREE.CylinderGeometry(2.3, 2.3, 2.4, 6)), brassDark);
-      bolt.position.set(6.6, Math.cos(a) * 12.5, Math.sin(a) * 12.5);
-      arm.add(bolt);
+    // Feststehend: Montageplatte auf der Seitenwand und Lagerbuchse
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(4, 70, DEPTH - 8), brassDark);
+    plate.position.x = wall + 2;
+    const boss = new THREE.Mesh(new THREE.LatheGeometry(
+      [[0, 0], [18, 0], [18, 2.5], [16.5, 5], [13, 6.5], [0, 6.5]].map(([r, x]) => new THREE.Vector2(r, x)), 48).rotateZ(-Math.PI / 2), brass);
+    boss.position.x = wall + 4;
+    yaw.add(plate, boss);
+    for (const [y, z] of [[-27, -11], [-27, 11], [27, -11], [27, 11]]) {
+      const screw = new THREE.Mesh(alongX(new THREE.CylinderGeometry(2.4, 2.4, 1.6, 12)), brass);
+      screw.position.set(wall + 4.6, y, z);
+      yaw.add(screw);
     }
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(5.5, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).rotateZ(-Math.PI / 2), brass);
-    cap.position.x = 6;
+
+    // Drehend: dicke Nabe aus der Buchse bis zum Hebel, mit Nieten und Rillen, außen ein Deckel
+    const hubStart = wall + 10, hubEnd = 12;
+    const hubLen = hubEnd - hubStart;
+    const hub = new THREE.Mesh(alongX(new THREE.CylinderGeometry(12.5, 12.5, hubLen, 48)), brass);
+    hub.position.x = hubStart + hubLen / 2;
+    arm.add(hub);
+    for (const x of [hubStart + 2, hubEnd - 2]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(12.6, 1.2, 10, 48).rotateY(Math.PI / 2), brassDark);
+      ring.position.x = x;
+      arm.add(ring);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const rivet = new THREE.Mesh(new THREE.SphereGeometry(2, 12, 8), brassDark);
+      rivet.position.set(hubStart + 9, Math.cos(a) * 12.5, Math.sin(a) * 12.5);
+      arm.add(rivet);
+    }
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(12.5, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2).rotateZ(-Math.PI / 2), brass);
+    cap.scale.x = 0.45;
+    cap.position.x = hubEnd;
     arm.add(cap);
 
-    // Klemme am Radkranz, Stange, Manschette unter dem Knauf, Knauf
-    const clamp = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 8.5, 16, 32), brassDark);
-    clamp.position.y = 24;
-    const stickLen = L - 30;
+    // Fassung, die die Stange in der Nabe hält
+    const clamp = new THREE.Mesh(new THREE.CylinderGeometry(7, 9, 14, 32), brassDark);
+    clamp.position.y = 16;
+    const stickLen = L - 22;
     const stick = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.2, stickLen, 32), brass);
-    stick.position.y = 30 + stickLen / 2;
+    stick.position.y = 22 + stickLen / 2;
     const collar = new THREE.Mesh(new THREE.LatheGeometry(
       [[0, 0], [7, 0], [8.5, 2], [8.5, 14], [6.5, 18], [0, 18]].map(([r, y]) => new THREE.Vector2(r, y)), 40), brass);
     collar.position.y = L - 44;
@@ -498,9 +512,9 @@ function init() {
     const px = R.lever.x + R.lever.w / 2;
     const py = R.lever.y + R.lever.h * 0.55;
     lv.L = R.lever.h * 0.38;
-    yaw.position.set(px, -py, 0);
-    yaw.rotation.y = THREE.MathUtils.degToRad(-6);
-    buildLever(lv.L, R.cabinet.x + R.cabinet.w - px - 4);
+    yaw.position.set(px, -py, -DEPTH / 2);
+    yaw.rotation.y = THREE.MathUtils.degToRad(-5);
+    buildLever(lv.L, R.cabinet.x + R.cabinet.w - px);
     invalidate();
   }
 
