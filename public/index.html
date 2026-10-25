@@ -18,7 +18,13 @@
   <div class="bokeh" id="bokeh" aria-hidden="true"></div>
 
   <header class="top">
-    <button type="button" class="link" id="soundBtn" aria-pressed="true">Ton an</button>
+    <button type="button" class="sound" id="soundBtn" aria-pressed="true" aria-label="Ton" title="Ton aus">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke-width="1.4"/>
+        <g class="on"><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></g>
+        <g class="off"><path d="M16 9.5l5 5M21 9.5l-5 5"/></g>
+      </svg>
+    </button>
   </header>
 
   <main>

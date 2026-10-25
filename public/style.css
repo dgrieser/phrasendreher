@@ -72,16 +72,25 @@ main { flex: 1; }
   justify-content: flex-end;
   padding-top: max(8px, env(safe-area-inset-top));
 }
-.link {
-  padding: 10px 0 10px 12px;
-  font: 700 .72rem var(--slab);
-  letter-spacing: .2em;
-  text-transform: uppercase;
+/* Lautsprecher-Symbol: mit Schallwellen = Ton an, durchgekreuzt = Ton aus */
+.sound {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -10px;
+  padding: 0;
   color: var(--muted);
   background: none;
   border: 0;
+  border-radius: 50%;
   cursor: pointer;
+  transition: color .2s;
 }
+.sound:hover, .sound:focus-visible { color: #f1d38a; outline: none; }
+.sound:focus-visible { box-shadow: 0 0 0 2px #f1d38a; }
+.sound[aria-pressed="true"] .off, .sound[aria-pressed="false"] .on { display: none; }
+.sound[aria-pressed="false"] { opacity: .7; }
 
 /* ---------- Material ---------- */
 .brass { background: var(--brass); }

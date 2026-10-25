@@ -546,7 +546,7 @@
     let on = store.get("sound", true);
     let lastTick = 0;
     const btn = $("soundBtn");
-    const render = () => { btn.textContent = on ? "Ton an" : "Ton aus"; btn.setAttribute("aria-pressed", String(on)); };
+    const render = () => { btn.setAttribute("aria-pressed", String(on)); btn.title = on ? "Ton aus" : "Ton an"; };
     render();
     btn.addEventListener("click", () => { on = !on; store.set("sound", on); render(); });
 
