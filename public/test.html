@@ -26,7 +26,68 @@
   </header>
 
   <main>
-    <form id="form" class="card" autocomplete="off">
+    <form id="form" class="stack" autocomplete="off" novalidate>
+    <section class="card" id="modelCard">
+      <div class="card-head">
+        <h2>Modell</h2>
+        <a class="ghost" id="docLink" href="#" target="_blank" rel="noopener" hidden>Doku ↗</a>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label for="model">Modell</label>
+          <select id="model"></select>
+          <span class="sub" id="modelInfo">&nbsp;</span>
+        </div>
+        <div class="field">
+          <label for="profile">Profil</label>
+          <select id="profile"></select>
+          <span class="sub">Empfohlene Einstellungen aus der mittwald-Doku</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <span class="label" id="thinkingLabel">Thinking</span>
+          <label class="switch">
+            <input type="checkbox" id="thinking" aria-labelledby="thinkingLabel">
+            <span class="track" aria-hidden="true"></span>
+            <span class="switch-text" id="thinkingText">Aus</span>
+          </label>
+          <span class="sub" id="thinkingHint">&nbsp;</span>
+        </div>
+        <div class="field">
+          <span class="label" id="effortLabel">Denkstufe</span>
+          <div class="segmented" id="effort" role="radiogroup" aria-labelledby="effortLabel"></div>
+          <span class="sub" id="effortHint">&nbsp;</span>
+        </div>
+      </div>
+
+      <div class="params">
+        <div class="field">
+          <label for="p-temperature">Temperatur</label>
+          <input type="number" id="p-temperature" data-param="temperature" min="0" max="2" step="any" placeholder="Standard">
+        </div>
+        <div class="field">
+          <label for="p-top_p">Top P</label>
+          <input type="number" id="p-top_p" data-param="top_p" min="0" max="1" step="any" placeholder="Standard">
+        </div>
+        <div class="field">
+          <label for="p-top_k">Top K</label>
+          <input type="number" id="p-top_k" data-param="top_k" min="1" max="200" step="1" placeholder="Standard">
+        </div>
+        <div class="field">
+          <label for="p-presence_penalty">Presence Penalty</label>
+          <input type="number" id="p-presence_penalty" data-param="presence_penalty" min="-2" max="2" step="any" placeholder="Standard">
+        </div>
+        <div class="field">
+          <label for="p-max_tokens">Max. Tokens</label>
+          <input type="number" id="p-max_tokens" data-param="max_tokens" min="16" max="32768" step="256" placeholder="Standard">
+        </div>
+      </div>
+    </section>
+
+    <section class="card input-card">
       <div class="card-head">
         <h2>Eingabe</h2>
         <button type="button" class="ghost" id="randomBtn">
@@ -65,6 +126,7 @@
         <button type="button" class="secondary" id="stopBtn" hidden>Abbrechen</button>
         <button type="submit" class="primary" id="runBtn">Verdrehen</button>
       </div>
+    </section>
     </form>
 
     <section class="card">
