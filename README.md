@@ -17,8 +17,14 @@ docker build -t phrasendreher .
 docker run -p 8080:8080 -e LLM_API_KEY=sk-... -e LLM_MODEL=Qwen3.8-27B-NVFP4 phrasendreher
 ```
 
-Ein fertiges Image baut der Workflow `.github/workflows/docker.yml` bei jedem Push auf `main` nach
-`ghcr.io/<owner>/phrasendreher`.
+Fertige Images baut der Workflow `.github/workflows/docker.yml` nach `ghcr.io/dgrieser/phrasendreher`:
+
+| Tag | Quelle |
+|---|---|
+| `edge` | letzter Stand von `main` |
+| `latest` | letztes Git-Tag (z. B. `v1.0.0`) |
+| `v1.0.0` usw. | das jeweilige Git-Tag |
+| `sha-…` | jeder gebaute Commit |
 
 ## Konfiguration (Umgebungsvariablen)
 
