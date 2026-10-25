@@ -94,9 +94,10 @@ main { flex: 1; }
 
 /* ---------- Automat ---------- */
 .machine {
+  --lever-col: 52px;
   position: relative;
   margin-top: 4px;
-  padding-right: 52px;
+  padding-right: var(--lever-col);
 }
 
 .cabinet { position: relative; filter: drop-shadow(0 30px 40px rgba(0, 0, 0, .6)); }
@@ -285,17 +286,6 @@ body.spinning .lever { cursor: progress; }
     #c4923a;
   background-position: 0 0, 0 var(--roll, 0px), 0 0;
 }
-.lever-mount {
-  position: absolute;
-  z-index: 0;
-  left: -16px;
-  top: var(--pivot);
-  width: 30px;
-  height: 34px;
-  margin-top: -17px;
-  border-radius: 5px;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(80, 45, 8, .55);
-}
 .lever-axle {
   position: absolute;
   z-index: 1;
@@ -387,8 +377,23 @@ body.spinning .lever { cursor: progress; }
 .lever:focus-visible { outline: none; }
 .lever:focus-visible .lever-ball { outline: 2px solid #f1d38a; outline-offset: 4px; }
 
-/* Der Automat ruckelt kurz, wenn der Hebel einrastet oder anschlägt */
-.machine.shake .cabinet { animation: shake .32s cubic-bezier(.3, .7, .4, 1); }
+/* 3D-Hebel (public/lever3d.js): Leinwand rechts neben dem Gehäuse; das Hebel-Element bleibt die Griffläche */
+.lever3d {
+  position: absolute;
+  z-index: 2;
+  top: -40px;
+  bottom: -40px;
+  right: -16px;
+  /* reicht über die Gehäusekante, damit der Knauf beim Ziehen nicht abgeschnitten wird */
+  width: calc(var(--lever-col) + 110px);
+  height: calc(100% + 80px);
+  pointer-events: none;
+}
+.lever.webgl > * { visibility: hidden; }
+.lever.webgl { z-index: 3; }
+
+/* Der Automat ruckelt kurz, wenn der Hebel einrastet oder anschlägt – samt Hebel */
+.machine.shake { animation: shake .32s cubic-bezier(.3, .7, .4, 1); }
 @keyframes shake {
   20% { transform: translate(0, 2px); }
   45% { transform: translate(-1px, -1px); }
@@ -403,7 +408,7 @@ body.spinning .lever { cursor: progress; }
   margin: 26px 52px 0 0;
   transition: opacity .4s;
 }
-.actions.hidden { opacity: 0; pointer-events: none; }
+.actions.hidden { display: none; }
 .button {
   min-height: 46px;
   padding: 0 24px;
@@ -422,7 +427,7 @@ body.spinning .lever { cursor: progress; }
 .button[aria-pressed="true"] { background: linear-gradient(180deg, #d44a3b, #8f1a10 60%, #5c0905); color: var(--cream); text-shadow: 0 -1px 0 rgba(0, 0, 0, .4); }
 
 /* ---------- Archiv ---------- */
-.archive { margin: 48px 0 32px; }
+.archive { margin: 28px 0 32px; }
 .tabs { display: flex; gap: 24px; border-bottom: 1px solid rgba(226, 184, 95, .3); }
 .tab {
   position: relative;
@@ -508,7 +513,7 @@ footer {
 
 @media (min-width: 560px) {
   :root { --reel-h: 112px; }
-  .machine { padding-right: 64px; }
+  .machine { --lever-col: 64px; }
   .actions { margin-right: 64px; }
 }
 

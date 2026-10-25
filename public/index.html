@@ -59,7 +59,6 @@
       </div>
 
       <div class="lever" id="lever" role="button" tabindex="0" aria-label="Hebel ziehen – neue Redewendung drehen">
-        <div class="lever-mount brass"></div>
         <div class="lever-axle" id="leverAxle"><span class="lever-nut"></span></div>
         <div class="lever-arm" id="leverArm">
           <div class="lever-stick"><span class="collar"></span></div>
@@ -107,5 +106,7 @@
   <script src="redewendungen.js"></script>
   <script src="dreher.js"></script>
   <script src="app.js"></script>
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+  <script type="module" src="lever3d.js"></script>
 </body>
 </html>

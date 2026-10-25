@@ -303,6 +303,8 @@
     }
 
     function render() {
+      // 3D-Modell (public/lever3d.js), falls WebGL verfügbar ist – sonst zeichnet der CSS-Hebel unten.
+      if (window.Lever3D) window.Lever3D.render(theta);
       const rad = (theta * Math.PI) / 180;
       el.classList.toggle("forward", theta > 55);
       arm.style.transform = `rotateX(${-theta}deg)`;
@@ -334,7 +336,9 @@
       return { pivot: rect.top + arm.offsetTop + L, L };
     }
 
-    function knobY(th) { return el.getBoundingClientRect().top + project(th).y; }
+    function knobY(th) {
+      return window.Lever3D ? window.Lever3D.knobClient(th).y : el.getBoundingClientRect().top + project(th).y;
+    }
 
     function ratchet() {
       const notch = Math.floor(theta / 15);
@@ -398,8 +402,8 @@
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pull(); }
     });
 
-    function tick(dt) {
-      if (mode === "rest") return;
+    // Physik in kleinen Teilschritten – sonst wird die steife Feder bei ruckelnden Frames instabil.
+    function step(dt) {
       if (mode === "drag") {
         // Kritisch gedämpfte Feder zum Finger hin – fühlt sich nach Gewicht an, ohne zu wackeln.
         const k = 900, c = 2 * Math.sqrt(k);
@@ -431,6 +435,12 @@
         }
         if (theta < 0.15 && Math.abs(vel) < 4) { theta = 0; vel = 0; mode = "rest"; }
       }
+    }
+
+    function tick(dt) {
+      if (mode === "rest") return;
+      const n = Math.max(1, Math.ceil(dt / 0.004));
+      for (let i = 0; i < n && mode !== "rest"; i++) step(dt / n);
       ratchet();
       render();
     }
