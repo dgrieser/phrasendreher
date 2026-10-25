@@ -7,6 +7,7 @@ const path = require("path");
 const { loadConfig, combine, combineStream, userMessage, SYSTEM_PROMPT } = require("./llm");
 const { parse, createLimiter, clientIp } = require("./ratelimit");
 const { listModels } = require("./models");
+const { createPicker, parseWeights } = require("./pairs");
 
 const PUBLIC = path.join(__dirname, "..", "public");
 const PORT = Number(process.env.PORT) || 8080;
@@ -36,6 +37,7 @@ require(path.join(PUBLIC, "redewendungen.js"));
 const Dreher = require(path.join(PUBLIC, "dreher.js"));
 const dreher = Dreher.createDreher(global.window.REDEWENDUNGEN);
 const known = new Set(global.window.REDEWENDUNGEN);
+const picker = createPicker(global.window.REDEWENDUNGEN, dreher, { weights: parseWeights(process.env.PAIR_WEIGHTS) });
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -53,12 +55,13 @@ function sendJson(res, status, data) {
 }
 
 async function dreh(res) {
-  // Der Mischmotor wählt zwei Redewendungen, die gut zusammenpassen,
-  // und liefert gleich eine Notlösung, falls das LLM streikt.
+  // Das Paar kommt aus dem Stapel mit passendem Partner (server/pairs.js).
+  // Der Mischmotor liefert die Notlösung, falls das LLM streikt.
+  const pair = picker.next();
   const local = dreher.spin();
   if (config.apiKey) {
     try {
-      const text = await combine(local.sources[0], local.sources[1], config);
+      const text = await combine(pair.a, pair.b, config);
       return sendJson(res, 200, { text, by: "llm" });
     } catch (err) {
       console.error("LLM-Fehler, nehme Notlösung:", err.message, err.cause ? `(${err.cause.code || err.cause.message})` : "");
@@ -165,6 +168,7 @@ const server = http.createServer((req, res) => {
       ready: !!config.apiKey,
     });
   }
+  if (TEST_PAGE && req.url === "/api/pair") return sendJson(res, 200, picker.next());
   if (TEST_PAGE && req.url === "/api/models") {
     if (!config.apiKey) return sendJson(res, 200, { models: [] });
     return void listModels(config).then((models) => sendJson(res, 200, { models }), (err) => sendJson(res, 502, { error: err.message }));
@@ -178,6 +182,8 @@ server.listen(PORT, () => {
   console.log(config.apiKey
     ? `LLM: ${config.settings.model} @ ${config.baseUrl} (Thinking: ${config.settings.thinking ? config.settings.effort : "aus"})`
     : "Kein LLM_API_KEY gesetzt – es dreht nur der eingebaute Mischmotor.");
+  console.log(`Paare: ${Object.entries(picker.weights).map(([k, v]) => `${k} ${v}`).join(", ")}`
+    + (picker.missing ? ` – ${picker.missing} Redewendungen fehlen in server/data/partners.json (scripts/build-partners.js ausführen)` : ""));
   const show = (r) => (r ? `${r.limit} pro ${r.windowMs / 1000} s` : "aus");
   console.log(`Ratenbegrenzung: Automat ${show(limits.dreh)}, Testlabor ${show(limits.test)} (Proxy-IP: ${TRUST_PROXY ? "ja" : "nein"})`);
 });
