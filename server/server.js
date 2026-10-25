@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const { loadConfig, combine, combineStream, userMessage, SYSTEM_PROMPT } = require("./llm");
 const { parse, createLimiter, clientIp } = require("./ratelimit");
+const { listModels } = require("./models");
 
 const PUBLIC = path.join(__dirname, "..", "public");
 const PORT = Number(process.env.PORT) || 8080;
@@ -83,6 +84,28 @@ function readJson(req, limit = 16 * 1024) {
   });
 }
 
+// Übernimmt die Einstellungen aus dem Testlabor – nur bekannte Modelle, Werte in sinnvollen Grenzen.
+function testSettings(input, models) {
+  const model = models.find((m) => m.id === input.model) || models.find((m) => m.id === config.settings.model) || models[0];
+  const n = (v, min, max, int) => {
+    if (v === "" || v === null || v === undefined) return undefined;
+    const x = Number(v);
+    if (!Number.isFinite(x)) return undefined;
+    const c = Math.min(max, Math.max(min, x));
+    return int ? Math.round(c) : c;
+  };
+  return {
+    model: model ? model.id : config.settings.model,
+    thinking: !!input.thinking,
+    effort: typeof input.effort === "string" ? input.effort : undefined,
+    temperature: n(input.temperature, 0, 2),
+    top_p: n(input.top_p, 0, 1),
+    top_k: n(input.top_k, 1, 200, true),
+    presence_penalty: n(input.presence_penalty, -2, 2),
+    max_tokens: n(input.max_tokens, 16, Math.min(32768, (model && model.maxOutput) || 32768), true) ?? config.settings.max_tokens,
+  };
+}
+
 // Streamt Denken und Antwort als NDJSON: eine JSON-Zeile pro Ereignis.
 async function test(req, res) {
   let input;
@@ -92,6 +115,8 @@ async function test(req, res) {
   if (!known.has(a) || !known.has(b)) return sendJson(res, 400, { error: "Bitte zwei Redewendungen aus der Liste wählen" });
   if (!config.apiKey) return sendJson(res, 503, { error: "Kein LLM_API_KEY gesetzt" });
 
+  const settings = testSettings(input.settings || {}, await listModels(config));
+
   res.writeHead(200, { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no" });
   const send = (event) => res.write(JSON.stringify(event) + "\n");
   const abort = new AbortController();
@@ -100,9 +125,10 @@ async function test(req, res) {
   try {
     const result = await combineStream(a, b, {
       system: system.trim() || SYSTEM_PROMPT,
+      settings,
       signal: AbortSignal.any([abort.signal, AbortSignal.timeout(Math.max(config.timeoutMs, 180000))]),
     }, send, config);
-    send({ type: "done", ...result, ms: Date.now() - started });
+    send({ type: "done", ...result, settings, ms: Date.now() - started });
   } catch (err) {
     if (!abort.signal.aborted) send({ type: "error", message: err.message });
   }
@@ -135,10 +161,13 @@ const server = http.createServer((req, res) => {
     return sendJson(res, 200, {
       system: SYSTEM_PROMPT,
       user: userMessage("{1}", "{2}"),
-      model: config.model,
-      thinking: config.thinking ? config.reasoningEffort : "aus",
+      server: config.settings,
       ready: !!config.apiKey,
     });
+  }
+  if (TEST_PAGE && req.url === "/api/models") {
+    if (!config.apiKey) return sendJson(res, 200, { models: [] });
+    return void listModels(config).then((models) => sendJson(res, 200, { models }), (err) => sendJson(res, 502, { error: err.message }));
   }
   if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405); return res.end(); }
   serveStatic(req, res);
@@ -147,7 +176,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log(`Phrasendreher läuft auf Port ${PORT}`);
   console.log(config.apiKey
-    ? `LLM: ${config.model} @ ${config.baseUrl} (Thinking: ${config.thinking ? config.reasoningEffort : "aus"})`
+    ? `LLM: ${config.settings.model} @ ${config.baseUrl} (Thinking: ${config.settings.thinking ? config.settings.effort : "aus"})`
     : "Kein LLM_API_KEY gesetzt – es dreht nur der eingebaute Mischmotor.");
   const show = (r) => (r ? `${r.limit} pro ${r.windowMs / 1000} s` : "aus");
   console.log(`Ratenbegrenzung: Automat ${show(limits.dreh)}, Testlabor ${show(limits.test)} (Proxy-IP: ${TRUST_PROXY ? "ja" : "nein"})`);
