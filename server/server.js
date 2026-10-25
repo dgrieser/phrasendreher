@@ -4,14 +4,13 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { loadConfig, serverSettings, combine, combineStream, userMessage, SYSTEM_PROMPT } = require("./llm");
+const { loadConfig, combine, combineStream, userMessage, SYSTEM_PROMPT } = require("./llm");
 const { parse, createLimiter, clientIp } = require("./ratelimit");
 const { listModels } = require("./models");
 
 const PUBLIC = path.join(__dirname, "..", "public");
 const PORT = Number(process.env.PORT) || 8080;
 const config = loadConfig();
-const automat = serverSettings(config);
 const TEST_PAGE = !/^(0|false|no|off)$/i.test(process.env.TEST_PAGE || "");
 const TRUST_PROXY = !/^(0|false|no|off)$/i.test(process.env.TRUST_PROXY || "");
 
@@ -87,7 +86,7 @@ function readJson(req, limit = 16 * 1024) {
 
 // Übernimmt die Einstellungen aus dem Testlabor – nur bekannte Modelle, Werte in sinnvollen Grenzen.
 function testSettings(input, models) {
-  const model = models.find((m) => m.id === input.model) || models.find((m) => m.id === automat.model) || models[0];
+  const model = models.find((m) => m.id === input.model) || models.find((m) => m.id === config.settings.model) || models[0];
   const n = (v, min, max, int) => {
     if (v === "" || v === null || v === undefined) return undefined;
     const x = Number(v);
@@ -96,14 +95,14 @@ function testSettings(input, models) {
     return int ? Math.round(c) : c;
   };
   return {
-    model: model ? model.id : automat.model,
+    model: model ? model.id : config.settings.model,
     thinking: !!input.thinking,
     effort: typeof input.effort === "string" ? input.effort : undefined,
     temperature: n(input.temperature, 0, 2),
     top_p: n(input.top_p, 0, 1),
     top_k: n(input.top_k, 1, 200, true),
     presence_penalty: n(input.presence_penalty, -2, 2),
-    max_tokens: n(input.max_tokens, 16, Math.min(32768, (model && model.maxOutput) || 32768), true) ?? automat.max_tokens,
+    max_tokens: n(input.max_tokens, 16, Math.min(32768, (model && model.maxOutput) || 32768), true) ?? config.settings.max_tokens,
   };
 }
 
@@ -162,7 +161,7 @@ const server = http.createServer((req, res) => {
     return sendJson(res, 200, {
       system: SYSTEM_PROMPT,
       user: userMessage("{1}", "{2}"),
-      server: automat,
+      server: config.settings,
       ready: !!config.apiKey,
     });
   }
@@ -177,7 +176,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log(`Phrasendreher läuft auf Port ${PORT}`);
   console.log(config.apiKey
-    ? `LLM: ${automat.model} @ ${config.baseUrl} (Thinking: ${automat.thinking ? automat.effort : "aus"})`
+    ? `LLM: ${config.settings.model} @ ${config.baseUrl} (Thinking: ${config.settings.thinking ? config.settings.effort : "aus"})`
     : "Kein LLM_API_KEY gesetzt – es dreht nur der eingebaute Mischmotor.");
   const show = (r) => (r ? `${r.limit} pro ${r.windowMs / 1000} s` : "aus");
   console.log(`Ratenbegrenzung: Automat ${show(limits.dreh)}, Testlabor ${show(limits.test)} (Proxy-IP: ${TRUST_PROXY ? "ja" : "nein"})`);
