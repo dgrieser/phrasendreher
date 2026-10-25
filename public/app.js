@@ -227,10 +227,13 @@
   let current = null;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // Fragt den Server (LLM). Ohne Server mischt der Browser selbst.
+  // Fragt den Server (LLM). Ohne Server – oder bei zu vielen Anfragen – mischt der Browser selbst.
+  let throttled = false;
   async function fetchPhrase() {
+    throttled = false;
     try {
       const res = await fetch("api/dreh", { method: "POST", signal: AbortSignal.timeout(60000) });
+      if (res.status === 429) throttled = true;
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
       if (data && data.text) return data.text;
@@ -251,6 +254,7 @@
     spins++;
     store.set("spins", spins);
     show(text, true);
+    if (throttled) $("note").textContent = "Kurze Pause – Handmischung";
     busy = false;
     body.classList.remove("spinning");
   }
