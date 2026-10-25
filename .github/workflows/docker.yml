@@ -39,3 +39,16 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # Lässt den Service bei mittwald das neue Image ziehen und neu starten.
+      # Die Webhook-URL enthält ein Token und liegt deshalb im Secret MITTWALD_WEBHOOK_URL.
+      - name: mittwald-Service aktualisieren
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        env:
+          WEBHOOK_URL: ${{ secrets.MITTWALD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::notice::Secret MITTWALD_WEBHOOK_URL nicht gesetzt – kein Redeploy."
+            exit 0
+          fi
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --max-time 60 "$WEBHOOK_URL"

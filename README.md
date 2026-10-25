@@ -26,6 +26,11 @@ Fertige Images baut der Workflow `.github/workflows/docker.yml` nach `ghcr.io/dg
 | `v1.0.0` usw. | das jeweilige Git-Tag |
 | `sha-…` | jeder gebaute Commit |
 
+Nach jedem Build auf `main` oder für ein Tag ruft der Workflow den Pull-Image-Webhook des
+mittwald-Container-Services auf. Der zieht das neue Image und startet den Service neu.
+Dafür die Webhook-URL (inklusive `?token=…`) als Repository-Secret `MITTWALD_WEBHOOK_URL`
+hinterlegen (*Settings → Secrets and variables → Actions*). Ohne Secret wird nur gebaut.
+
 ## Konfiguration (Umgebungsvariablen)
 
 Standardmäßig wird [mittwald AI Hosting](https://developer.mittwald.de/de/docs/v2/platform/aihosting/models/qwen3-8-27b-nvfp4)
