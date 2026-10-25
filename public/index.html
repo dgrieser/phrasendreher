@@ -54,17 +54,19 @@
               <span class="rod brass"></span>
               <span class="rivet brass"></span>
             </div>
-            <p class="status brass" id="note">Hebel ziehen</p>
           </div>
         </div>
       </div>
 
       <div class="lever" id="lever" role="button" tabindex="0" aria-label="Hebel ziehen – neue Redewendung drehen">
         <div class="lever-mount brass"></div>
+        <div class="lever-axle" id="leverAxle"><span class="lever-nut"></span></div>
         <div class="lever-arm" id="leverArm">
           <div class="lever-stick"><span class="collar"></span></div>
         </div>
-        <div class="lever-hub"></div>
+        <div class="lever-sleeve" id="leverSleeve">
+          <i class="bolt"></i><i class="bolt"></i><i class="bolt"></i><i class="bolt"></i>
+        </div>
         <div class="lever-ball" id="leverBall"></div>
       </div>
     </div>
@@ -95,6 +97,11 @@
   <footer>Alle Weisheiten ohne Gewähr</footer>
 
   <div class="measure" id="measure" aria-hidden="true"></div>
+  <!-- Bewegungsunschärfe der Walzen: nur senkrecht, wie bei echter Drehung -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <filter id="motion-blur" x="0" y="-20%" width="100%" height="140%"><feGaussianBlur stdDeviation="0 3.2"/></filter>
+    <filter id="motion-blur-soft" x="0" y="-20%" width="100%" height="140%"><feGaussianBlur stdDeviation="0 1.4"/></filter>
+  </svg>
   <div class="toast" id="toast" role="status"></div>
 
   <script src="redewendungen.js"></script>
