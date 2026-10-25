@@ -1,15 +1,6 @@
 (function () {
   "use strict";
 
-  const WAITING = [
-    "Die Walzen glühen …",
-    "Ein Fass wird aufgemacht …",
-    "Phrasen werden gedroschen …",
-    "Gleich fällt der Groschen …",
-    "Das Rad wird neu erfunden …",
-    "Die Kirche wird ums Dorf getragen …",
-  ];
-
   const $ = (id) => document.getElementById(id);
   const body = document.body;
   const dreher = Dreher.createDreher(window.REDEWENDUNGEN);
@@ -135,11 +126,14 @@
         if (!visible) return;
         const top = this.project(Math.min(89.9, rel + half));
         const bottom = this.project(Math.max(-89.9, rel - half));
-        const mid = this.project(rel);
+        // Volle Breite: eine Trommel wird zu den Rändern hin nur gestaucht, nicht schmaler.
         const sy = Math.max(0.001, (bottom.y - top.y) / this.F);
-        f.el.style.transform = `translateY(${top.y}px) scale(${mid.s}, ${sy})`;
+        f.el.style.transform = `translateY(${top.y}px) scaleY(${sy})`;
       });
-      this.el.classList.toggle("fast", Math.abs(this.speed) > 380);
+      // Senkrechte Bewegungsunschärfe auf der ganzen Trommel – Text, Linien und Rauten.
+      const v = Math.abs(this.speed);
+      this.el.classList.toggle("blur", v > 520);
+      this.el.classList.toggle("blur-soft", v > 160 && v <= 520);
     }
 
     show(text) {
@@ -246,7 +240,6 @@
     busy = true;
     body.classList.add("spinning");
     $("actions").classList.add("hidden");
-    $("note").textContent = pick(WAITING);
     drums.forEach((d) => d.start());
     const [text] = await Promise.all([fetchPhrase(), wait(reduceMotion ? 300 : 1400)]);
     const parts = Dreher.splitInThree(text);
@@ -254,7 +247,7 @@
     spins++;
     store.set("spins", spins);
     show(text, true);
-    if (throttled) $("note").textContent = "Kurze Pause – Handmischung";
+    if (throttled) toast("Kurze Pause – die Walzen mischen selbst");
     busy = false;
     body.classList.remove("spinning");
   }
@@ -262,7 +255,6 @@
   function show(text, fresh) {
     current = text;
     $("phrase").textContent = text;
-    $("note").textContent = "Gewinn Nº " + spins;
     $("actions").classList.remove("hidden");
     updateFavButton();
     if (fresh) {
@@ -274,16 +266,23 @@
   }
 
   // ---------- Hebel ----------
-  // Der Hebel ist ein echter 3D-Arm, der um seinen Drehpunkt nach vorn und unten kippt.
-  // Man zieht frei mit dem Finger; kurz vor dem Anschlag löst er aus und schnellt zurück.
+  // Der Hebel kippt um eine waagrechte Achse nach vorn und unten. Achse, Manschette und Schrauben drehen sich mit.
+  // Er folgt dem Finger mit etwas Trägheit, rastet kurz vor dem Anschlag ein, schwingt durch und federt zurück.
   const lever = (() => {
     const el = $("lever");
     const arm = $("leverArm");
     const ball = $("leverBall");
-    const MAX = 125;         // Grad: so weit lässt er sich ziehen
+    const sleeve = $("leverSleeve");
+    const axle = $("leverAxle");
+    const bolts = [...sleeve.querySelectorAll(".bolt")];
+    const machine = document.querySelector(".machine");
+    const MAX = 125;         // Grad: Anschlag unten
     const TRIGGER = 112;     // ab hier wird gedreht
+    const SLEEVE_R = 15;     // Radius der Manschette (px)
+    const AXLE_R = 7;        // Radius der Achse (px)
     let theta = 0;
-    let vel = 0;
+    let vel = 0;             // Grad pro Sekunde
+    let target = 0;
     let mode = "rest";       // rest | drag | spring | auto
     let lastNotch = 0;
     let autoT = 0;
@@ -304,11 +303,29 @@
     }
 
     function render() {
-      el.classList.toggle("forward", theta > 62);
+      const rad = (theta * Math.PI) / 180;
+      el.classList.toggle("forward", theta > 55);
       arm.style.transform = `rotateX(${-theta}deg)`;
       const k = project(theta);
       const half = ball.offsetWidth / 2;
       ball.style.transform = `translate(${k.x - half}px, ${k.y - half}px) scale(${k.s})`;
+      ball.style.setProperty("--hl", (28 - 10 * Math.sin(rad)).toFixed(1) + "%");
+      // Riffelung von Manschette und Achse rollt mit; Schrauben wandern um die Manschette herum.
+      sleeve.style.setProperty("--roll", (SLEEVE_R * rad).toFixed(2) + "px");
+      axle.style.setProperty("--roll", (AXLE_R * rad).toFixed(2) + "px");
+      bolts.forEach((bolt, i) => {
+        const phi = rad + (i * Math.PI) / 2;
+        const front = Math.cos(phi);
+        bolt.style.transform = `translateY(${(SLEEVE_R * 0.78 * Math.sin(phi)).toFixed(2)}px) scaleY(${Math.max(0.05, front).toFixed(3)})`;
+        bolt.style.opacity = clamp(front * 3, 0, 1).toFixed(2);
+      });
+    }
+
+    function shake() {
+      if (reduceMotion) return;
+      machine.classList.remove("shake");
+      void machine.offsetWidth;
+      machine.classList.add("shake");
     }
 
     function geometry() {
@@ -317,41 +334,43 @@
       return { pivot: rect.top + arm.offsetTop + L, L };
     }
 
-    function knobY(g, th) { return el.getBoundingClientRect().top + project(th).y; }
+    function knobY(th) { return el.getBoundingClientRect().top + project(th).y; }
 
-    function setTheta(th) {
-      theta = clamp(th, 0, MAX);
-      const notch = Math.floor(theta / 18);
-      if (notch > lastNotch) sound.ratchet();
+    function ratchet() {
+      const notch = Math.floor(theta / 15);
+      if (notch > lastNotch && mode !== "spring") sound.ratchet();
       lastNotch = notch;
-      render();
     }
 
+    // Eingerastet: Schwung behalten, Walzen starten.
     function fire() {
       mode = "spring";
-      vel = 0;
+      vel = Math.max(vel, 260);
+      drag = null;
+      el.classList.remove("dragging");
       sound.unlock();
       sound.clack();
       vibrate(30);
+      shake();
       spin();
     }
 
     function pull() {
-      if (busy || mode === "auto") return;
+      if (busy || mode === "auto" || mode === "spring") return;
       sound.unlock();
       mode = "auto";
       autoT = 0;
     }
 
     el.addEventListener("pointerdown", (e) => {
-      if (busy || mode === "auto") return;
+      if (busy || mode === "auto" || mode === "spring") return;
       sound.unlock();
       const g = geometry();
-      const y = knobY(g, theta);
+      const y = knobY(theta);
       const nearKnob = Math.abs(e.clientY - y) < 46;
       drag = { g, offset: nearKnob ? e.clientY - y : 0, y0: e.clientY, t0: Date.now(), moved: 0 };
       mode = "drag";
-      vel = 0;
+      target = theta;
       el.setPointerCapture(e.pointerId);
       el.classList.add("dragging");
       if (!nearKnob) move(e);
@@ -361,12 +380,7 @@
       if (!drag) return;
       drag.moved = Math.max(drag.moved, Math.abs(e.clientY - drag.y0));
       const cos = clamp((drag.g.pivot - (e.clientY - drag.offset)) / drag.g.L, Math.cos((MAX * Math.PI) / 180), 1);
-      setTheta((Math.acos(cos) * 180) / Math.PI);
-      if (theta >= TRIGGER) {
-        drag = null;
-        el.classList.remove("dragging");
-        fire();
-      }
+      target = (Math.acos(cos) * 180) / Math.PI;
     }
     el.addEventListener("pointermove", move);
 
@@ -385,24 +399,40 @@
     });
 
     function tick(dt) {
-      if (mode === "auto") {
+      if (mode === "rest") return;
+      if (mode === "drag") {
+        // Kritisch gedämpfte Feder zum Finger hin – fühlt sich nach Gewicht an, ohne zu wackeln.
+        const k = 900, c = 2 * Math.sqrt(k);
+        vel += (k * (target - theta) - c * vel) * dt;
+        theta += vel * dt;
+        if (theta < 0) { theta = 0; vel = Math.max(0, vel); }
+        if (theta >= TRIGGER) fire();
+      } else if (mode === "auto") {
         autoT += dt;
-        const t = clamp(autoT / 0.32, 0, 1);
-        setTheta(TRIGGER * t * t);
+        const t = clamp(autoT / 0.3, 0, 1);
+        const prev = theta;
+        theta = TRIGGER * t * t;
+        vel = dt > 0 ? (theta - prev) / dt : 0;
         if (t >= 1) fire();
       } else if (mode === "spring") {
-        // Feder zieht nach oben, der Anschlag lässt ihn abprallen.
-        vel += (-140 * theta - 9 * vel) * dt;
+        // Feder zieht nach oben; unten und oben prallt er vom Anschlag ab.
+        vel += (-150 * theta - 7 * vel) * dt;
         theta += vel * dt;
+        if (theta > MAX) {
+          theta = MAX - (theta - MAX) * 0.3;
+          sound.thud(Math.min(1, vel / 900));
+          vel = -vel * 0.3;
+          shake();
+        }
         if (theta < 0) {
-          theta = -theta * 0.3;
-          if (vel < -60) sound.thud(Math.min(1, -vel / 900));
-          vel = -vel * 0.32;
+          theta = -theta * 0.25;
+          if (vel < -120) { sound.thud(Math.min(1, -vel / 900)); shake(); }
+          vel = -vel * 0.35;
         }
         if (theta < 0.15 && Math.abs(vel) < 4) { theta = 0; vel = 0; mode = "rest"; }
-        lastNotch = Math.floor(theta / 18);
-        render();
       }
+      ratchet();
+      render();
     }
 
     render();
@@ -585,6 +615,6 @@
     const text = shared.slice(0, 200);
     Dreher.splitInThree(text).forEach((p, k) => drums[k].show(p));
     show(text, false);
-    $("note").textContent = "Eine geschenkte Weisheit";
+    toast("Eine geschenkte Weisheit");
   }
 })();

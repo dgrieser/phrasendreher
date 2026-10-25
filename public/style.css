@@ -225,14 +225,15 @@ main { flex: 1; }
 }
 .txt { color: var(--ink); text-wrap: balance; }
 .face.blank .txt { color: var(--red); }
-.drum.fast .txt { filter: blur(1.6px); }
+.drum.blur-soft { filter: url(#motion-blur-soft); }
+.drum.blur { filter: url(#motion-blur); }
 
 .measure { left: -9999px; top: 0; visibility: hidden; white-space: normal; text-wrap: balance; }
 
 /* ---------- Sockel ---------- */
 .base { margin-top: 3px; border-radius: 6px 6px 12px 12px; }
 .base-wood {
-  padding: 14px 16px 18px;
+  padding: 18px 16px;
   border-radius: 4px 4px 10px 10px;
 }
 .rail { display: flex; align-items: center; gap: 8px; }
@@ -253,26 +254,12 @@ main { flex: 1; }
   border-radius: 3px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(80, 45, 8, .6), inset 0 0 0 4px rgba(255, 240, 190, .3);
 }
-.status {
-  margin: 14px auto 0;
-  width: fit-content;
-  max-width: 100%;
-  min-height: 1.9em;
-  padding: 5px 16px 4px;
-  font: 700 clamp(.78rem, 3.6vw, .92rem) var(--slab);
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  text-align: center;
-  color: #3a2208;
-  text-shadow: 0 1px 0 rgba(255, 244, 205, .7);
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(80, 45, 8, .5);
-}
-body.spinning .status { animation: flicker 1.4s ease-in-out infinite; }
-@keyframes flicker { 50% { filter: brightness(.8); } }
 
-/* ---------- Hebel (echtes 3D) ---------- */
+/* ---------- Hebel ----------
+   Stange in echtem CSS-3D, Knauf und Lager per Script projiziert.
+   Das Lager ist eine waagrechte Achse mit Manschette – beide drehen sich mit dem Hebel. */
 .lever {
+  --pivot: 55%;
   position: absolute;
   top: 0;
   right: 0;
@@ -290,15 +277,79 @@ body.spinning .status { animation: flicker 1.4s ease-in-out infinite; }
 .lever.dragging { cursor: grabbing; }
 body.spinning .lever { cursor: progress; }
 
+/* Gerändeltes Messing: Schattierung des Zylinders über einer Riffelung, die mit der Drehung wandert */
+.lever-axle, .lever-nut, .lever-sleeve {
+  background:
+    linear-gradient(180deg, rgba(40, 22, 4, .75) 0%, rgba(255, 244, 205, .55) 28%, rgba(255, 255, 255, 0) 45%, rgba(40, 22, 4, .2) 70%, rgba(30, 15, 2, .8) 100%),
+    repeating-linear-gradient(180deg, #e6bd63 0 2px, #9a6b22 2px 3px, #d2a248 3px 4px),
+    #c4923a;
+  background-position: 0 0, 0 var(--roll, 0px), 0 0;
+}
+.lever-mount {
+  position: absolute;
+  z-index: 0;
+  left: -16px;
+  top: var(--pivot);
+  width: 30px;
+  height: 34px;
+  margin-top: -17px;
+  border-radius: 5px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(80, 45, 8, .55);
+}
+.lever-axle {
+  position: absolute;
+  z-index: 1;
+  left: -4px;
+  right: 9px;
+  top: var(--pivot);
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 3px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, .5);
+}
+.lever-nut {
+  position: absolute;
+  right: -7px;
+  top: -5px;
+  width: 9px;
+  height: 24px;
+  border-radius: 3px;
+  box-shadow: 0 3px 5px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(80, 45, 8, .6);
+}
+.lever-sleeve {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: var(--pivot);
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  overflow: hidden;
+  border-radius: 7px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(80, 45, 8, .6);
+}
+.lever.forward .lever-sleeve { z-index: 1; }
+.bolt {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff2c4, #a87a2c 55%, #4a2d08);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .5);
+}
+
 .lever-arm {
   position: absolute;
+  z-index: 2;
   left: 50%;
   top: 17%;
   height: 38%;
   width: 0;
   transform-origin: 0 100%;
 }
-.lever.forward .lever-arm { z-index: 2; }
 .lever-stick {
   position: absolute;
   left: -6px;
@@ -319,48 +370,30 @@ body.spinning .lever { cursor: progress; }
   box-shadow: 0 3px 3px rgba(0, 0, 0, .45);
 }
 .lever-ball {
+  --hl: 28%;
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   left: 0;
   top: 0;
   width: 54px;
   height: 54px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 35% 28%, rgba(255, 236, 225, .95) 0 5%, rgba(255, 190, 170, .45) 11%, transparent 22%),
+    radial-gradient(circle at 35% var(--hl), rgba(255, 236, 225, .95) 0 5%, rgba(255, 190, 170, .45) 11%, transparent 22%),
     radial-gradient(circle at 60% 75%, rgba(255, 120, 90, .25), transparent 40%),
     radial-gradient(circle at 42% 38%, #c43a2a 0%, #8f1a10 35%, #560a05 70%, #2a0402 100%);
   box-shadow: inset -5px -7px 12px rgba(0, 0, 0, .5), 0 6px 14px rgba(0, 0, 0, .5);
 }
-.lever-hub {
-  position: absolute;
-  z-index: 1;
-  left: 50%;
-  top: 55%;
-  width: 34px;
-  height: 44px;
-  margin: -22px 0 0 -17px;
-  border-radius: 8px;
-  background:
-    radial-gradient(circle at 50% 50%, #3d2507 0 4px, transparent 5px),
-    radial-gradient(circle at 50% 50%, #fff0b8 0 9px, #b5832e 10px, #6b4311 13px, transparent 14px),
-    var(--brass-h);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(80, 45, 8, .6);
-  transform: translateZ(16px);
-}
-.lever-mount {
-  position: absolute;
-  left: -10px;
-  top: 55%;
-  width: 40px;
-  height: 26px;
-  margin-top: -13px;
-  border-radius: 4px;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, .5);
-  transform: translateZ(2px);
-}
 .lever:focus-visible { outline: none; }
 .lever:focus-visible .lever-ball { outline: 2px solid #f1d38a; outline-offset: 4px; }
+
+/* Der Automat ruckelt kurz, wenn der Hebel einrastet oder anschlägt */
+.machine.shake .cabinet { animation: shake .32s cubic-bezier(.3, .7, .4, 1); }
+@keyframes shake {
+  20% { transform: translate(0, 2px); }
+  45% { transform: translate(-1px, -1px); }
+  70% { transform: translate(1px, .5px); }
+}
 
 /* ---------- Aktionen ---------- */
 .actions {
