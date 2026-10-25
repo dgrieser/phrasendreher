@@ -82,6 +82,12 @@ korrigiert) und die jeweils zehn nächsten Nachbarn nach Bedeutung und nach Bild
 `Qwen3-Embedding-8B`). Erzeugt wird die Datei mit `scripts/build-partners.js` – nach jeder Änderung an der
 Liste, siehe [`AGENT.md`](AGENT.md).
 
+## Der Automat in 3D
+
+Gehäuse, Walzen und Hebel werden mit [three.js](https://threejs.org) (MIT, mitgeliefert in `public/vendor/`) als
+3D-Modell gezeichnet (`public/machine3d.js`). Die Maße kommen aus dem unsichtbaren HTML-Gerüst, deshalb passt
+das Modell zu jeder Bildschirmbreite. Ohne WebGL bleibt der HTML/CSS-Automat sichtbar und funktioniert genauso.
+
 ## Testlabor
 
 Unter `/test` lassen sich Prompt und Modell ausprobieren: zwei Redewendungen wählen (oder würfeln),
