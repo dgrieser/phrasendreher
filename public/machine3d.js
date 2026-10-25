@@ -412,7 +412,7 @@ function init() {
   }
 
   // ---------- Hebel ----------
-  const lv = { L: 0, ball: null };
+  const lv = { L: 0, ball: null, sway: null };
   function buildLever(L, wall) {
     clear(yaw);
     yaw.add(arm);
@@ -457,18 +457,23 @@ function init() {
     cap.position.x = hubEnd;
     arm.add(cap);
 
-    // Fassung, die die Stange in der Nabe hält
+    // Fassung, Stange und Knauf hängen an einem Gelenk auf der Nabe – so kann die Stange nach einem Schlag
+    // kurz zur Seite schwingen (lv.sway.rotation.z).
+    const sway = new THREE.Group();
+    sway.position.set(ox, 9, 0);
+    arm.add(sway);
+    lv.sway = sway;
     const clamp = new THREE.Mesh(new THREE.CylinderGeometry(7, 9, 14, 32), brassDark);
-    clamp.position.set(ox, 16, 0);
+    clamp.position.set(0, 7, 0);
     const stickLen = L - 22;
     const stick = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.2, stickLen, 32), brass);
-    stick.position.set(ox, 22 + stickLen / 2, 0);
+    stick.position.set(0, 13 + stickLen / 2, 0);
     const collar = new THREE.Mesh(new THREE.LatheGeometry(
       [[0, 0], [7, 0], [8.5, 2], [8.5, 14], [6.5, 18], [0, 18]].map(([r, y]) => new THREE.Vector2(r, y)), 40), brass);
-    collar.position.set(ox, L - KNOB_R - 17, 0);
+    collar.position.set(0, L - 9 - KNOB_R - 17, 0);
     const ball = new THREE.Mesh(new THREE.SphereGeometry(KNOB_R, 48, 32), red);
-    ball.position.set(ox, L, 0);
-    arm.add(clamp, stick, collar, ball);
+    ball.position.set(0, L - 9, 0);
+    sway.add(clamp, stick, collar, ball);
     lv.ball = ball;
   }
 
@@ -532,12 +537,15 @@ function init() {
       queued = false;
       syncReels();
       arm.rotation.x = THREE.MathUtils.degToRad(theta);
+      if (lv.sway) lv.sway.rotation.z = THREE.MathUtils.degToRad(-swayDeg);
       renderer.render(scene, camera);
     });
   }
 
-  function lever(th) {
+  let swayDeg = 0;
+  function lever(th, sw = 0) {
     theta = th;
+    swayDeg = sw;
     invalidate();
   }
 
