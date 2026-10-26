@@ -265,7 +265,7 @@
       history = [text, ...history.filter((t) => t !== text)].slice(0, 15);
       store.set("history", history);
       renderLists();
-      sound.chime();
+      sound.payout();
     }
   }
 
@@ -477,8 +477,7 @@
           theta = -theta * 0.25;
           if (vel < -120) {
             const s = Math.min(1, -vel / 900);
-            sound.thud(s);
-            if (!locked) sound.twang(s);
+            sound.snapBack(s);
             kick(-Math.min(50, -vel * 0.06));
             shake();
           }
@@ -633,6 +632,30 @@
       src.stop(t + dur + 0.02);
     }
 
+    // Aufnahmen (CC0) werden beim ersten Antippen geladen; bis dahin bleibt es eben still.
+    const samples = { clunk: [], knock: [], payout: null };
+    function loadSamples() {
+      const load = (name) => fetch("sounds/" + name)
+        .then((r) => r.arrayBuffer())
+        .then((data) => new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject)))
+        .catch(() => null);
+      for (const kind of ["clunk", "knock"]) {
+        for (let i = 1; i <= 3; i++) load(`${kind}-${i}.wav`).then((b) => b && samples[kind].push(b));
+      }
+      load("payout.mp3").then((b) => { samples.payout = b; });
+    }
+    const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
+    function play(buffer, vol, rate = 1) {
+      if (!on || !ctx || !buffer) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.playbackRate.value = rate;
+      const g = ctx.createGain();
+      g.gain.value = vol;
+      src.connect(g).connect(ctx.destination);
+      src.start();
+    }
+
     return {
       unlock() {
         try {
@@ -641,6 +664,7 @@
             noise = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
             const d = noise.getChannelData(0);
             for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+            loadSamples();
           }
           if (ctx.state === "suspended") ctx.resume();
         } catch (e) { ctx = null; }
@@ -655,26 +679,16 @@
       ratchet(p, vol) { click(1500 + 900 * p, 0.035, 0.12 * vol); },
       // Sperre während des Drehens: metallisches Anschlagen
       lock(s) { click(1150, 0.05, 0.32 * s); click(380, 0.09, 0.28 * s, 0.006); tone(190, 0.07, 0.04 * s, 0, "square"); },
-      // Rückholfeder schnalzt nach
-      twang(s) {
-        if (!on || !ctx) return;
-        const t = ctx.currentTime;
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.type = "triangle";
-        o.frequency.setValueAtTime(240, t);
-        o.frequency.exponentialRampToValueAtTime(70, t + 0.35);
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.07 * s, t + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
-        o.connect(g).connect(ctx.destination);
-        o.start(t);
-        o.stop(t + 0.45);
-      },
       clack() { click(900, 0.12, 0.5); tone(110, 0.2, 0.12, 0, "triangle"); },
       thud(strength) { click(500, 0.08, 0.25 * strength); },
       settle(k) { click(700 - k * 80, 0.1, 0.4); tone(160 - k * 20, 0.18, 0.08, 0, "triangle"); },
-      chime() { [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.9, 0.05, i * 0.09, "triangle")); },
+      // Hebel schlägt oben an: Metall auf Metall, dazu das Holzgehäuse (Aufnahmen, siehe sounds/QUELLEN.md)
+      snapBack(s) {
+        play(pickOne(samples.clunk), 0.55 * s, 0.94 + Math.random() * 0.12);
+        play(pickOne(samples.knock), 0.8 * s, 0.9 + Math.random() * 0.12);
+      },
+      // Ergebnis steht: ein paar Münzen klimpern in die Schale
+      payout() { play(samples.payout, 0.55, 0.97 + Math.random() * 0.06); },
     };
   })();
 
