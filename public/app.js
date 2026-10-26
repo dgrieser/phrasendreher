@@ -282,12 +282,17 @@
     const machine = document.querySelector(".machine");
     const MAX = 125;         // Grad: Anschlag unten
     const TRIGGER = 112;     // ab hier wird gedreht
+    const LOCK = 7;          // Grad: so weit lässt sich der Hebel bewegen, solange die Walzen laufen
+    const NOTCH = 10;        // Grad zwischen zwei Rasten der Ratsche
     const SLEEVE_R = 15;     // Radius der Manschette (px)
     const AXLE_R = 7;        // Radius der Achse (px)
     let theta = 0;
     let vel = 0;             // Grad pro Sekunde
     let target = 0;
     let mode = "rest";       // rest | drag | spring | auto
+    let locked = false;      // Bewegung begann während des Drehens: die Sperre hält den Hebel bei LOCK
+    let sway = 0;            // seitliches Nachschwingen der Stange (Grad)
+    let swayVel = 0;
     let lastNotch = 0;
     let autoT = 0;
     let drag = null;
@@ -308,7 +313,7 @@
 
     function render() {
       // 3D-Modell (public/machine3d.js), falls WebGL verfügbar ist – sonst zeichnet der CSS-Hebel.
-      if (window.Machine3D) { window.Machine3D.lever(theta); return; }
+      if (window.Machine3D) { window.Machine3D.lever(theta, sway); return; }
       const rad = (theta * Math.PI) / 180;
       el.classList.toggle("forward", theta > 55);
       arm.style.transform = `rotateX(${-theta}deg)`;
@@ -344,10 +349,18 @@
       return window.Machine3D ? window.Machine3D.knobClient(th).y : el.getBoundingClientRect().top + project(th).y;
     }
 
+    // Ratsche: beim Ziehen eine Raste alle NOTCH Grad, mit steigender Tonhöhe und kurzem Ruckeln.
+    // Beim Zurückschnellen rattert sie leiser durch.
     function ratchet() {
-      const notch = Math.floor(theta / 15);
-      if (notch > lastNotch && mode !== "spring") sound.ratchet();
+      const notch = Math.floor(theta / NOTCH);
+      if (notch > lastNotch && mode !== "spring") { sound.ratchet(theta / MAX, 1); vibrate(4); }
+      else if (notch < lastNotch && mode === "spring" && !locked) sound.ratchet(theta / MAX, 0.35);
       lastNotch = notch;
+    }
+
+    // Stange schwingt nach einem Schlag kurz zur Seite und pendelt aus.
+    function kick(amount) {
+      if (!reduceMotion) swayVel += amount;
     }
 
     // Eingerastet: Schwung behalten, Walzen starten.
@@ -358,21 +371,46 @@
       el.classList.remove("dragging");
       sound.unlock();
       sound.clack();
-      vibrate(30);
+      vibrate([22, 40, 14]);
+      kick(120);
       shake();
       spin();
     }
 
+    // Sperre während des Drehens: der Hebel schlägt bei LOCK an. Losgelassen federt er zurück,
+    // mit dem Finger dagegengedrückt bleibt er an der Sperre liegen (ein Schlag, kein Rattern).
+    let atLock = false;
+    function hitLock() {
+      theta = LOCK;
+      if (!atLock && vel > 25) {
+        const s = Math.min(1, vel / 320);
+        sound.lock(s);
+        vibrate(Math.round(6 + 8 * s));
+        kick(15 + 30 * s);
+      }
+      atLock = true;
+      vel = mode === "drag" ? 0 : -Math.abs(vel) * 0.3;
+    }
+
     function pull() {
-      if (busy || mode === "auto" || mode === "spring") return;
+      if (mode !== "rest") return;
       sound.unlock();
+      if (busy) {
+        // Walzen laufen noch: kurzer Ruck bis an die Sperre
+        locked = true;
+        mode = "spring";
+        vel = 300;
+        return;
+      }
+      locked = false;
       mode = "auto";
       autoT = 0;
     }
 
     el.addEventListener("pointerdown", (e) => {
-      if (busy || mode === "auto" || mode === "spring") return;
+      if (mode === "auto" || (mode === "spring" && theta > (busy ? LOCK : 20))) return;
       sound.unlock();
+      locked = busy;
       const g = geometry();
       const y = knobY(theta);
       const nearKnob = Math.abs(e.clientY - y) < 46;
@@ -397,8 +435,8 @@
       const tapped = drag.moved < 6 && Date.now() - drag.t0 < 350;
       drag = null;
       el.classList.remove("dragging");
-      if (tapped && !busy) { mode = "rest"; pull(); }
-      else mode = "spring";
+      mode = "spring";
+      if (tapped && theta < 1) { mode = "rest"; pull(); }
     }
     el.addEventListener("pointerup", end);
     el.addEventListener("pointercancel", end);
@@ -409,12 +447,13 @@
     // Physik in kleinen Teilschritten – sonst wird die steife Feder bei ruckelnden Frames instabil.
     function step(dt) {
       if (mode === "drag") {
-        // Kritisch gedämpfte Feder zum Finger hin – fühlt sich nach Gewicht an, ohne zu wackeln.
-        const k = 900, c = 2 * Math.sqrt(k);
-        vel += (k * (target - theta) - c * vel) * dt;
+        // Gedämpfte Feder zum Finger hin. Je weiter unten, desto schwerer: die Rückholfeder spannt sich.
+        const k = 900 * (1 - 0.3 * clamp(theta / MAX, 0, 1)), c = 2 * Math.sqrt(k);
+        vel += (k * (target - theta) - c * vel - 12 * theta) * dt;
         theta += vel * dt;
         if (theta < 0) { theta = 0; vel = Math.max(0, vel); }
-        if (theta >= TRIGGER) fire();
+        if (locked) { if (theta > LOCK) hitLock(); else if (theta < LOCK - 1.5) atLock = false; }
+        else if (theta >= TRIGGER) fire();
       } else if (mode === "auto") {
         autoT += dt;
         const t = clamp(autoT / 0.3, 0, 1);
@@ -423,28 +462,39 @@
         vel = dt > 0 ? (theta - prev) / dt : 0;
         if (t >= 1) fire();
       } else if (mode === "spring") {
-        // Feder zieht nach oben; unten und oben prallt er vom Anschlag ab.
+        // Feder zieht nach oben; unten (oder an der Sperre) und oben prallt er vom Anschlag ab.
         vel += (-150 * theta - 7 * vel) * dt;
         theta += vel * dt;
+        if (locked) { if (theta > LOCK) hitLock(); else if (theta < LOCK - 1.5) atLock = false; }
         if (theta > MAX) {
           theta = MAX - (theta - MAX) * 0.3;
           sound.thud(Math.min(1, vel / 900));
+          kick(Math.min(60, vel * 0.08));
           vel = -vel * 0.3;
           shake();
         }
         if (theta < 0) {
           theta = -theta * 0.25;
-          if (vel < -120) { sound.thud(Math.min(1, -vel / 900)); shake(); }
+          if (vel < -120) {
+            const s = Math.min(1, -vel / 900);
+            sound.thud(s);
+            if (!locked) sound.twang(s);
+            kick(-Math.min(50, -vel * 0.06));
+            shake();
+          }
           vel = -vel * 0.35;
         }
-        if (theta < 0.15 && Math.abs(vel) < 4) { theta = 0; vel = 0; mode = "rest"; }
+        if (theta < 0.15 && Math.abs(vel) < 4) { theta = 0; vel = 0; mode = "rest"; locked = false; }
       }
+      // Seitliches Nachschwingen der Stange
+      swayVel += (-700 * sway - 9 * swayVel) * dt;
+      sway += swayVel * dt;
     }
 
     function tick(dt) {
-      if (mode === "rest") return;
+      if (mode === "rest" && Math.abs(sway) < 0.02 && Math.abs(swayVel) < 0.5) return;
       const n = Math.max(1, Math.ceil(dt / 0.004));
-      for (let i = 0; i < n && mode !== "rest"; i++) step(dt / n);
+      for (let i = 0; i < n; i++) step(dt / n);
       ratchet();
       render();
     }
@@ -601,7 +651,26 @@
         lastTick = now;
         click(2600 + k * 500, 0.03, 0.05);
       },
-      ratchet() { click(1800, 0.04, 0.12); },
+      // Raste der Ratsche: höher, je weiter der Hebel unten ist
+      ratchet(p, vol) { click(1500 + 900 * p, 0.035, 0.12 * vol); },
+      // Sperre während des Drehens: metallisches Anschlagen
+      lock(s) { click(1150, 0.05, 0.32 * s); click(380, 0.09, 0.28 * s, 0.006); tone(190, 0.07, 0.04 * s, 0, "square"); },
+      // Rückholfeder schnalzt nach
+      twang(s) {
+        if (!on || !ctx) return;
+        const t = ctx.currentTime;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "triangle";
+        o.frequency.setValueAtTime(240, t);
+        o.frequency.exponentialRampToValueAtTime(70, t + 0.35);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.07 * s, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+        o.connect(g).connect(ctx.destination);
+        o.start(t);
+        o.stop(t + 0.45);
+      },
       clack() { click(900, 0.12, 0.5); tone(110, 0.2, 0.12, 0, "triangle"); },
       thud(strength) { click(500, 0.08, 0.25 * strength); },
       settle(k) { click(700 - k * 80, 0.1, 0.4); tone(160 - k * 20, 0.18, 0.08, 0, "triangle"); },

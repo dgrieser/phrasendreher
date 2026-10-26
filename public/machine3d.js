@@ -12,7 +12,8 @@ const app = window.Phrasendreher;
 const N = 12;                       // Seiten pro Walze (wie in app.js)
 const STEP = (Math.PI * 2) / N;
 const DEPTH = 40;                   // Tiefe des Gehäuses (px)
-const REEL_FRONT = -5;              // Vorderkante der Walzen hinter dem Glas
+const REEL_FRONT = -5;
+const KNOB_R = 24;                 // Radius des Hebelknaufs (px)              // Vorderkante der Walzen hinter dem Glas
 const SLAB = '"Rokkitt", "Rockwell", Georgia, serif';
 
 function init() {
@@ -262,13 +263,14 @@ function init() {
       shade.renderOrder = 1;
       reelsGroup.add(shade);
       reels.push({ drum, faces, blur, w: rect.w, arc, S, H, r });
-      // Dunkle Stege über und unter der Walze verdecken die Nachbarwalzen, die sich dort nach hinten wegdrehen
-      const top = k === 0 ? R.window.y : R.reels[k - 1].y + R.reels[k - 1].h;
-      const bottom = k === R.reels.length - 1 ? R.window.y + R.window.h : R.reels[k + 1].y;
-      for (const [y0, y1] of [[top, rect.y], [rect.y + H, bottom]]) {
-        if (y1 - y0 <= 0) continue;
-        const bar = new THREE.Mesh(new THREE.PlaneGeometry(rect.w, y1 - y0), dark);
-        bar.position.set(rect.x + rect.w / 2, -(y0 + y1) / 2, REEL_FRONT + 1);
+      // Dunkle Stege über (und unter der letzten) Walze: echte Klötze von der Glasscheibe bis tief ins Fenster,
+      // die etwas über die Walzenkanten greifen. So blitzt auch schräg und bei krummen Pixelmaßen nichts Helles
+      // von den Nachbarwalzen durch, die sich dort nach hinten wegdrehen.
+      const gaps = [[k === 0 ? R.window.y : R.reels[k - 1].y + R.reels[k - 1].h, rect.y]];
+      if (k === R.reels.length - 1) gaps.push([rect.y + H, R.window.y + R.window.h]);
+      for (const [y0, y1] of gaps) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(rect.w, y1 - y0 + 2, 14), dark);
+        bar.position.set(rect.x + rect.w / 2, -(y0 + y1) / 2, -9);
         reelsGroup.add(bar);
       }
       app.drums[k].faces.forEach((f, i) => face(k, i, f.text));
@@ -410,7 +412,7 @@ function init() {
   }
 
   // ---------- Hebel ----------
-  const lv = { L: 0, ball: null };
+  const lv = { L: 0, ball: null, sway: null };
   function buildLever(L, wall) {
     clear(yaw);
     yaw.add(arm);
@@ -432,7 +434,9 @@ function init() {
     }
 
     // Drehend: dicke Nabe aus der Buchse bis zum Hebel, mit Nieten und Rillen, außen ein Deckel
-    const hubStart = wall + 10, hubEnd = 12;
+    // Die Stange steht so weit außen, dass der Knauf in jeder Stellung neben dem Gehäuse bleibt.
+    const ox = Math.max(0, wall + KNOB_R + 6);
+    const hubStart = wall + 10, hubEnd = ox + 12;
     const hubLen = hubEnd - hubStart;
     const hub = new THREE.Mesh(alongX(new THREE.CylinderGeometry(12.5, 12.5, hubLen, 48)), brass);
     hub.position.x = hubStart + hubLen / 2;
@@ -453,18 +457,23 @@ function init() {
     cap.position.x = hubEnd;
     arm.add(cap);
 
-    // Fassung, die die Stange in der Nabe hält
+    // Fassung, Stange und Knauf hängen an einem Gelenk auf der Nabe – so kann die Stange nach einem Schlag
+    // kurz zur Seite schwingen (lv.sway.rotation.z).
+    const sway = new THREE.Group();
+    sway.position.set(ox, 9, 0);
+    arm.add(sway);
+    lv.sway = sway;
     const clamp = new THREE.Mesh(new THREE.CylinderGeometry(7, 9, 14, 32), brassDark);
-    clamp.position.y = 16;
+    clamp.position.set(0, 7, 0);
     const stickLen = L - 22;
     const stick = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 5.2, stickLen, 32), brass);
-    stick.position.y = 22 + stickLen / 2;
+    stick.position.set(0, 13 + stickLen / 2, 0);
     const collar = new THREE.Mesh(new THREE.LatheGeometry(
       [[0, 0], [7, 0], [8.5, 2], [8.5, 14], [6.5, 18], [0, 18]].map(([r, y]) => new THREE.Vector2(r, y)), 40), brass);
-    collar.position.y = L - 44;
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(27, 48, 32), red);
-    ball.position.y = L;
-    arm.add(clamp, stick, collar, ball);
+    collar.position.set(0, L - 9 - KNOB_R - 17, 0);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(KNOB_R, 48, 32), red);
+    ball.position.set(0, L - 9, 0);
+    sway.add(clamp, stick, collar, ball);
     lv.ball = ball;
   }
 
@@ -528,12 +537,15 @@ function init() {
       queued = false;
       syncReels();
       arm.rotation.x = THREE.MathUtils.degToRad(theta);
+      if (lv.sway) lv.sway.rotation.z = THREE.MathUtils.degToRad(-swayDeg);
       renderer.render(scene, camera);
     });
   }
 
-  function lever(th) {
+  let swayDeg = 0;
+  function lever(th, sw = 0) {
     theta = th;
+    swayDeg = sw;
     invalidate();
   }
 
