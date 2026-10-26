@@ -265,7 +265,7 @@
       history = [text, ...history.filter((t) => t !== text)].slice(0, 15);
       store.set("history", history);
       renderLists();
-      sound.payout();
+      sound.win();
     }
   }
 
@@ -380,6 +380,16 @@
     // Sperre während des Drehens: der Hebel schlägt bei LOCK an. Losgelassen federt er zurück,
     // mit dem Finger dagegengedrückt bleibt er an der Sperre liegen (ein Schlag, kein Rattern).
     let atLock = false;
+
+    // Rücklauf nach oben: wie lange bis zum Anschlag, und wie schnell ist er dann? (gleiche Feder wie in step)
+    let returning = false;
+    let returnSound = null;
+    function timeToTop(th, v) {
+      let t = 0;
+      const h = 0.002;
+      while (th > 0 && t < 1.5) { v += (-150 * th - 7 * v) * h; th += v * h; t += h; }
+      return { t, vel: v };
+    }
     function hitLock() {
       theta = LOCK;
       if (!atLock && vel > 25) {
@@ -410,6 +420,9 @@
     el.addEventListener("pointerdown", (e) => {
       if (mode === "auto" || (mode === "spring" && theta > (busy ? LOCK : 20))) return;
       sound.unlock();
+      // Hebel wieder gegriffen, bevor er oben anschlägt: angesetzten Anschlag abbrechen
+      if (returnSound) { try { returnSound.stop(); } catch (err) { /* schon vorbei */ } returnSound = null; }
+      returning = false;
       locked = busy;
       const g = geometry();
       const y = knobY(theta);
@@ -473,17 +486,25 @@
           vel = -vel * 0.3;
           shake();
         }
+        // Rücklauf beginnt: Zeit bis zum oberen Anschlag vorausrechnen, damit der Knall der Aufnahme genau dann kommt.
+        // Nur einmal pro Zug – das Nachfedern danach klopft nur leise.
+        if (vel < 0 && !returning && !locked && theta > 12) {
+          returning = true;
+          const hit = timeToTop(theta, vel);
+          returnSound = sound.leverReturn(hit.t, Math.min(1, -hit.vel / 900));
+        }
         if (theta < 0) {
           theta = -theta * 0.25;
           if (vel < -120) {
             const s = Math.min(1, -vel / 900);
-            sound.snapBack(s);
+            if (!returnSound) sound.thud(s);
             kick(-Math.min(50, -vel * 0.06));
             shake();
           }
+          returnSound = null;
           vel = -vel * 0.35;
         }
-        if (theta < 0.15 && Math.abs(vel) < 4) { theta = 0; vel = 0; mode = "rest"; locked = false; }
+        if (theta < 0.15 && Math.abs(vel) < 4) { theta = 0; vel = 0; mode = "rest"; locked = false; returning = false; }
       }
       // Seitliches Nachschwingen der Stange
       swayVel += (-700 * sway - 9 * swayVel) * dt;
@@ -632,28 +653,27 @@
       src.stop(t + dur + 0.02);
     }
 
-    // Aufnahmen (CC0) werden beim ersten Antippen geladen; bis dahin bleibt es eben still.
-    const samples = { clunk: [], knock: [], payout: null };
+    // Aufnahmen (public/sounds/) werden beim ersten Antippen geladen; bis dahin gibt es die synthetischen Geräusche.
+    const samples = { leverReturn: null, win: null };
+    const LEVER_IMPACT = 0.125;   // Sekunden vom Beginn von lever-return.wav bis zum Anschlag
     function loadSamples() {
       const load = (name) => fetch("sounds/" + name)
         .then((r) => r.arrayBuffer())
         .then((data) => new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject)))
         .catch(() => null);
-      for (const kind of ["clunk", "knock"]) {
-        for (let i = 1; i <= 3; i++) load(`${kind}-${i}.wav`).then((b) => b && samples[kind].push(b));
-      }
-      load("payout.mp3").then((b) => { samples.payout = b; });
+      load("lever-return.wav").then((b) => { samples.leverReturn = b; });
+      load("win.mp3").then((b) => { samples.win = b; });
     }
-    const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
-    function play(buffer, vol, rate = 1) {
-      if (!on || !ctx || !buffer) return;
+    // Spielt eine Aufnahme ab, auf Wunsch verzögert (delay > 0) oder schon ein Stück weit drin (delay < 0).
+    function play(buffer, vol, delay = 0) {
+      if (!on || !ctx || !buffer) return null;
       const src = ctx.createBufferSource();
       src.buffer = buffer;
-      src.playbackRate.value = rate;
       const g = ctx.createGain();
       g.gain.value = vol;
       src.connect(g).connect(ctx.destination);
-      src.start();
+      src.start(ctx.currentTime + Math.max(0, delay), Math.max(0, -delay));
+      return src;
     }
 
     return {
@@ -682,13 +702,11 @@
       clack() { click(900, 0.12, 0.5); tone(110, 0.2, 0.12, 0, "triangle"); },
       thud(strength) { click(500, 0.08, 0.25 * strength); },
       settle(k) { click(700 - k * 80, 0.1, 0.4); tone(160 - k * 20, 0.18, 0.08, 0, "triangle"); },
-      // Hebel schlägt oben an: Metall auf Metall, dazu das Holzgehäuse (Aufnahmen, siehe sounds/QUELLEN.md)
-      snapBack(s) {
-        play(pickOne(samples.clunk), 0.55 * s, 0.94 + Math.random() * 0.12);
-        play(pickOne(samples.knock), 0.8 * s, 0.9 + Math.random() * 0.12);
-      },
-      // Ergebnis steht: ein paar Münzen klimpern in die Schale
-      payout() { play(samples.payout, 0.55, 0.97 + Math.random() * 0.06); },
+      // Hebel schnellt zurück: Aufnahme mit Anlauf, so gestartet, dass ihr Anschlag mit dem des Hebels zusammenfällt.
+      // Gibt die laufende Quelle zurück (zum Abbrechen) oder null, wenn die Aufnahme nicht spielt.
+      leverReturn(secondsToImpact, s) { return play(samples.leverReturn, 0.35 + 0.55 * s, secondsToImpact - LEVER_IMPACT); },
+      // Ganze Redewendung steht
+      win() { play(samples.win, 0.6); },
     };
   })();
 

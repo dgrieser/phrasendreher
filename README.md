@@ -88,8 +88,8 @@ Gehäuse, Walzen und Hebel werden mit [three.js](https://threejs.org) (MIT, mitg
 3D-Modell gezeichnet (`public/machine3d.js`). Die Maße kommen aus dem unsichtbaren HTML-Gerüst, deshalb passt
 das Modell zu jeder Bildschirmbreite. Ohne WebGL bleibt der HTML/CSS-Automat sichtbar und funktioniert genauso.
 
-Die meisten Geräusche entstehen live mit der Web Audio API. Das Anschlagen des Hebels und die Münzen beim Ergebnis
-sind Aufnahmen (CC0) in `public/sounds/`, Quellen in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).
+Die meisten Geräusche entstehen live mit der Web Audio API. Das Zurückschnellen des Hebels und der Gewinnton beim
+Ergebnis sind Aufnahmen in `public/sounds/`, Details in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).
 
 ## Testlabor
 
