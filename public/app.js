@@ -48,95 +48,27 @@
     if (r) r.reels.forEach((part, k) => part && fillers[k].push(part));
   }
 
-  // Schriftgröße so wählen, dass der Text auf eine Trommelseite passt (max. zwei Zeilen).
-  const measure = $("measure");
-  const fitCache = new Map();
-  function fitSize(text, width, height, max) {
-    const key = `${width}|${height}|${text}`;
-    if (fitCache.has(key)) return fitCache.get(key);
-    measure.style.width = width + "px";
-    measure.textContent = text;
-    let lo = 11, hi = Math.floor(max), best = lo;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      measure.style.fontSize = mid + "px";
-      if (measure.scrollWidth <= width && measure.scrollHeight <= height) { best = mid; lo = mid + 1; }
-      else hi = mid - 1;
-    }
-    fitCache.set(key, best);
-    return best;
-  }
-
+  // Eine Walze: nur Zustand (Winkel, Tempo, Texte der zwölf Seiten). Gezeichnet wird sie in public/machine3d.js.
   class Drum {
-    constructor(reel, k) {
-      this.reel = reel;
+    constructor(k) {
       this.k = k;
-      this.el = reel.querySelector(".drum");
       this.angle = 0;      // Grad; abnehmend = Symbole laufen nach unten
       this.speed = 0;      // Grad pro Sekunde
       this.mode = "idle";
       this.locked = -1;
-      this.faces = Array.from({ length: N }, () => {
-        const face = document.createElement("div");
-        face.className = "face";
-        face.innerHTML = '<i class="gem-top"></i><span class="txt"></span><i class="gem-bot"></i>';
-        this.el.appendChild(face);
-        return { el: face, txt: face.querySelector(".txt"), text: "" };
-      });
-      this.layout();
-      this.faces.forEach((_, i) => this.setFace(i, pick(fillers[k])));
+      this.faces = Array.from({ length: N }, () => ({ text: pick(fillers[k]) }));
       this.front = this.frontIndex();
     }
 
-    layout() {
-      this.H = this.reel.clientHeight;
-      this.F = Math.round(this.H * 0.84);
-      this.r = this.F / (2 * Math.tan(Math.PI / N));
-      this.faces.forEach((f) => { f.el.style.height = this.F + "px"; });
-      this.textW = this.reel.clientWidth - 28;
-      this.faces.forEach((f, i) => this.setFace(i, f.text));
-      this.render();
-    }
-
     setFace(i, text) {
-      const f = this.faces[i];
-      f.text = text;
-      // 3D-Automat (public/machine3d.js) zeichnet die Seite selbst
-      if (window.Machine3D) { window.Machine3D.face(this.k, i, text); return; }
-      f.el.classList.toggle("blank", !text);
-      f.txt.textContent = text || "♦";
-      f.txt.style.fontSize = fitSize(text || "♦", this.textW, this.F * 0.6, this.F * 0.42) + "px";
+      this.faces[i].text = text;
+      if (window.Machine3D) window.Machine3D.face(this.k, i, text);
     }
 
     frontIndex() { return mod(Math.round(-this.angle / STEP), N); }
 
-    // Die Trommel wird selbst projiziert (Zylinder + Perspektive) und mit 2D-Transforms gezeichnet.
-    // Das sieht aus wie echtes 3D, ist aber unabhängig von der Tiefensortierung des Browsers.
-    project(deg) {
-      const a = (deg * Math.PI) / 180;
-      const z = this.r * Math.cos(a) - this.r;           // 0 vorn, negativ nach hinten
-      const s = PERSPECTIVE / (PERSPECTIVE - z);
-      return { y: this.H / 2 - this.r * Math.sin(a) * s, s };
-    }
-
     render() {
-      if (window.Machine3D) { window.Machine3D.invalidate(); return; }
-      const half = STEP / 2;
-      this.faces.forEach((f, i) => {
-        const rel = mod(i * STEP + this.angle + 180, 360) - 180;
-        const visible = Math.abs(rel) < 90 - half + 8;
-        if (f.visible !== visible) { f.visible = visible; f.el.style.visibility = visible ? "" : "hidden"; }
-        if (!visible) return;
-        const top = this.project(Math.min(89.9, rel + half));
-        const bottom = this.project(Math.max(-89.9, rel - half));
-        // Volle Breite: eine Trommel wird zu den Rändern hin nur gestaucht, nicht schmaler.
-        const sy = Math.max(0.001, (bottom.y - top.y) / this.F);
-        f.el.style.transform = `translateY(${top.y}px) scaleY(${sy})`;
-      });
-      // Senkrechte Bewegungsunschärfe auf der ganzen Trommel – Text, Linien und Rauten.
-      const v = Math.abs(this.speed);
-      this.el.classList.toggle("blur", v > 520);
-      this.el.classList.toggle("blur-soft", v > 160 && v <= 520);
+      if (window.Machine3D) window.Machine3D.invalidate();
     }
 
     show(text) {
@@ -209,16 +141,9 @@
     }
   }
 
-  const PERSPECTIVE = 440;
   const SPEEDS = reduceMotion ? [200, 200, 200] : [820, 900, 760];
-  const drums = [...document.querySelectorAll(".reel")].map((reel, k) => new Drum(reel, k));
+  const drums = [0, 1, 2].map((k) => new Drum(k));
   window.Phrasendreher = { drums };
-
-  let resizeTimer;
-  window.addEventListener("resize", () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { fitCache.clear(); drums.forEach((d) => d.layout()); lever.render(); }, 120);
-  });
 
   // ---------- Drehen ----------
   let busy = false;
@@ -266,26 +191,21 @@
       store.set("history", history);
       renderLists();
       sound.win();
+      confetti();
     }
   }
 
   // ---------- Hebel ----------
-  // Der Hebel kippt um eine waagrechte Achse nach vorn und unten. Achse, Manschette und Schrauben drehen sich mit.
+  // Der Hebel kippt um eine waagrechte Achse nach vorn und unten (gezeichnet in public/machine3d.js).
   // Er folgt dem Finger mit etwas Trägheit, rastet kurz vor dem Anschlag ein, schwingt durch und federt zurück.
+  // Das Element #lever ist nur die Grifffläche.
   const lever = (() => {
     const el = $("lever");
-    const arm = $("leverArm");
-    const ball = $("leverBall");
-    const sleeve = $("leverSleeve");
-    const axle = $("leverAxle");
-    const bolts = [...sleeve.querySelectorAll(".bolt")];
     const machine = document.querySelector(".machine");
     const MAX = 125;         // Grad: Anschlag unten
     const TRIGGER = 112;     // ab hier wird gedreht
     const LOCK = 7;          // Grad: so weit lässt sich der Hebel bewegen, solange die Walzen laufen
     const NOTCH = 10;        // Grad zwischen zwei Rasten der Ratsche
-    const SLEEVE_R = 15;     // Radius der Manschette (px)
-    const AXLE_R = 7;        // Radius der Achse (px)
     let theta = 0;
     let vel = 0;             // Grad pro Sekunde
     let target = 0;
@@ -297,39 +217,8 @@
     let autoT = 0;
     let drag = null;
 
-    // Stange: echtes CSS-3D. Knauf: dieselbe Perspektive selbst gerechnet, damit er immer vorn liegt.
-    const PERSP = 1100;
-    function project(th) {
-      const W = el.clientWidth;
-      const Hl = el.clientHeight;
-      const L = arm.offsetHeight;
-      const pivot = arm.offsetTop + L;
-      const a = (th * Math.PI) / 180;
-      const z = L * Math.sin(a);
-      const s = PERSP / (PERSP - z);
-      const ox = W * 0.1, oy = Hl * 0.5;
-      return { x: ox + (W / 2 - ox) * s, y: oy + (pivot - L * Math.cos(a) - oy) * s, s };
-    }
-
     function render() {
-      // 3D-Modell (public/machine3d.js), falls WebGL verfügbar ist – sonst zeichnet der CSS-Hebel.
-      if (window.Machine3D) { window.Machine3D.lever(theta, sway); return; }
-      const rad = (theta * Math.PI) / 180;
-      el.classList.toggle("forward", theta > 55);
-      arm.style.transform = `rotateX(${-theta}deg)`;
-      const k = project(theta);
-      const half = ball.offsetWidth / 2;
-      ball.style.transform = `translate(${k.x - half}px, ${k.y - half}px) scale(${k.s})`;
-      ball.style.setProperty("--hl", (28 - 10 * Math.sin(rad)).toFixed(1) + "%");
-      // Riffelung von Manschette und Achse rollt mit; Schrauben wandern um die Manschette herum.
-      sleeve.style.setProperty("--roll", (SLEEVE_R * rad).toFixed(2) + "px");
-      axle.style.setProperty("--roll", (AXLE_R * rad).toFixed(2) + "px");
-      bolts.forEach((bolt, i) => {
-        const phi = rad + (i * Math.PI) / 2;
-        const front = Math.cos(phi);
-        bolt.style.transform = `translateY(${(SLEEVE_R * 0.78 * Math.sin(phi)).toFixed(2)}px) scaleY(${Math.max(0.05, front).toFixed(3)})`;
-        bolt.style.opacity = clamp(front * 3, 0, 1).toFixed(2);
-      });
+      if (window.Machine3D) window.Machine3D.lever(theta, sway);
     }
 
     function shake() {
@@ -339,14 +228,16 @@
       machine.classList.add("shake");
     }
 
+    // Drehpunkt bei 55 % der Hebelspalte, Arm 38 % ihrer Höhe (wie in machine3d.js)
     function geometry() {
       const rect = el.getBoundingClientRect();
-      const L = arm.offsetHeight;
-      return { pivot: rect.top + arm.offsetTop + L, L };
+      return { pivot: rect.top + rect.height * 0.55, L: rect.height * 0.38 };
     }
 
     function knobY(th) {
-      return window.Machine3D ? window.Machine3D.knobClient(th).y : el.getBoundingClientRect().top + project(th).y;
+      if (window.Machine3D) return window.Machine3D.knobClient(th).y;
+      const g = geometry();
+      return g.pivot - g.L * Math.cos((th * Math.PI) / 180);
     }
 
     // Ratsche: beim Ziehen eine Raste alle NOTCH Grad, mit steigender Tonhöhe und kurzem Ruckeln.
@@ -526,6 +417,87 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === " " && e.target === body) { e.preventDefault(); lever.pull(); }
   });
+
+  // ---------- Konfetti ----------
+  // Beim Gewinnton schießt Konfetti von beiden Seiten und segelt im Hintergrund herab.
+  const confetti = (() => {
+    const canvas = $("confetti");
+    const ctx = canvas.getContext("2d");
+    const colors = ["#f1d38a", "#d8ab4f", "#fff0b8", "#b3261e", "#e0503f", "#f3e6c8", "#9c6c24"];
+    let parts = [];
+    let running = false;
+    let last = 0;
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(innerWidth * dpr);
+      canvas.height = Math.round(innerHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function frame(now) {
+      const dt = Math.min(0.033, (now - last) / 1000);
+      last = now;
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      parts = parts.filter((p) => p.y < innerHeight + 40 && p.life > 0);
+      for (const p of parts) {
+        // Steigen: Schwerkraft und wenig Luftwiderstand. Fallen: das Papier segelt mit eigener, langsamer
+        // Sinkgeschwindigkeit und pendelt dabei hin und her.
+        if (p.vy < 0) p.vy += 900 * dt;
+        else p.vy += (p.sink - p.vy) * Math.min(1, 3 * dt);
+        p.vx *= Math.pow(0.3, dt);
+        p.x += (p.vx + Math.sin(now / 1000 * p.wobble + p.phase) * 40) * dt;
+        p.y += p.vy * dt;
+        p.rot += p.spin * dt;
+        p.life -= dt;
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, p.life / 0.8);
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.scale(1, Math.cos(now / 1000 * p.flip + p.phase));   // Kippen: Vorder- und Rückseite blitzen
+        ctx.fillStyle = p.color;
+        if (p.round) { ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2); ctx.fill(); }
+        else ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+      if (parts.length) requestAnimationFrame(frame);
+      else { running = false; ctx.clearRect(0, 0, innerWidth, innerHeight); }
+    }
+
+    return function burst() {
+      if (reduceMotion) return;
+      resize();
+      // Zwei Kanonen am linken und rechten Rand schießen schräg nach oben zur Mitte; das Konfetti fliegt über den
+      // Automaten und segelt hinter ihm herab.
+      const r = document.querySelector(".window").getBoundingClientRect();
+      const oy = Math.min(innerHeight * 0.75, r.bottom);
+      for (let i = 0; i < 180; i++) {
+        const side = i % 2 ? 1 : -1;                                       // -1 links, 1 rechts
+        const y = oy + (Math.random() - 0.5) * 60;
+        // Gipfel irgendwo im oberen Drittel: Abschussgeschwindigkeit daraus (Steigen ohne Luftwiderstand)
+        const apex = innerHeight * (0.03 + Math.random() * 0.3);
+        const vy = -Math.sqrt(2 * 900 * Math.max(60, y - apex));
+        const w = 5 + Math.random() * 6;
+        parts.push({
+          x: side < 0 ? -8 : innerWidth + 8,
+          y,
+          vx: -side * (-vy) * (0.25 + Math.random() * 0.5),
+          vy,
+          w, h: w * (0.4 + Math.random() * 0.5),
+          round: Math.random() < 0.18,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rot: Math.random() * Math.PI * 2,
+          spin: (Math.random() - 0.5) * 12,
+          flip: 4 + Math.random() * 8,
+          wobble: 1 + Math.random() * 3,
+          phase: Math.random() * Math.PI * 2,
+          sink: 70 + Math.random() * 70,
+          life: 7 + Math.random() * 2,
+        });
+      }
+      if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }
+    };
+  })();
 
   // ---------- Teilen & Merken ----------
   $("shareBtn").addEventListener("click", async () => {
