@@ -89,8 +89,8 @@ Gehäuse, Walzen und Hebel werden mit [three.js](https://threejs.org) (MIT, mitg
 das Modell zu jeder Bildschirmbreite. Der Automat erscheint erst, wenn er fertig gezeichnet ist; ohne WebGL gibt es nur
 einen Hinweis. Beim Gewinnton fliegt Konfetti hinter dem Automaten (bei „Bewegung reduzieren“ nicht).
 
-Die meisten Geräusche entstehen live mit der Web Audio API. Das Zurückschnellen des Hebels und der Gewinnton beim
-Ergebnis sind Aufnahmen in `public/sounds/`, Details in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).
+Die meisten Geräusche entstehen live mit der Web Audio API. Das Anlaufen der Walzen, das Zurückschnellen des Hebels
+und der Gewinnton beim Ergebnis sind Aufnahmen in `public/sounds/`, Details in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).
 
 ## Testlabor
 

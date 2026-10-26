@@ -626,7 +626,7 @@
     }
 
     // Aufnahmen (public/sounds/) werden beim ersten Antippen geladen; bis dahin gibt es die synthetischen Geräusche.
-    const samples = { leverReturn: null, win: null };
+    const samples = { leverReturn: null, spinStart: null, win: null };
     const LEVER_IMPACT = 0.125;   // Sekunden vom Beginn von lever-return.wav bis zum Anschlag
     function loadSamples() {
       const load = (name) => fetch("sounds/" + name)
@@ -634,6 +634,7 @@
         .then((data) => new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject)))
         .catch(() => null);
       load("lever-return.wav").then((b) => { samples.leverReturn = b; });
+      load("spin-start.mp3").then((b) => { samples.spinStart = b; });
       load("win.mp3").then((b) => { samples.win = b; });
     }
     // Spielt eine Aufnahme ab, auf Wunsch verzögert (delay > 0) oder schon ein Stück weit drin (delay < 0).
@@ -671,7 +672,12 @@
       ratchet(p, vol) { click(1500 + 900 * p, 0.035, 0.12 * vol); },
       // Sperre während des Drehens: metallisches Anschlagen
       lock(s) { click(1150, 0.05, 0.32 * s); click(380, 0.09, 0.28 * s, 0.006); tone(190, 0.07, 0.04 * s, 0, "square"); },
-      clack() { click(900, 0.12, 0.5); tone(110, 0.2, 0.12, 0, "triangle"); },
+      // Hebel rastet ein, die Walzen laufen an: Aufnahme, bis sie geladen ist das synthetische Klacken
+      clack() {
+        if (play(samples.spinStart, 0.7)) return;
+        click(900, 0.12, 0.5);
+        tone(110, 0.2, 0.12, 0, "triangle");
+      },
       thud(strength) { click(500, 0.08, 0.25 * strength); },
       settle(k) { click(700 - k * 80, 0.1, 0.4); tone(160 - k * 20, 0.18, 0.08, 0, "triangle"); },
       // Hebel schnellt zurück: Aufnahme mit Anlauf, so gestartet, dass ihr Anschlag mit dem des Hebels zusammenfällt.
