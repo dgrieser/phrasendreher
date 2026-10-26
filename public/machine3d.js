@@ -1,7 +1,7 @@
 // Der ganze Automat als 3D-Modell (Three.js): Gehäuse aus Holz mit Messingrahmen, Namensschild,
 // Sichtfenster mit drei echten Walzen hinter Glas, Sockel mit Zierleiste und der Hebel an der Seitenwand.
 // Die Maße kommen aus dem (unsichtbaren) HTML-Gerüst – so passt sich das Modell an jede Bildschirmbreite an.
-// app.js steuert Walzen und Hebel; dieses Modul zeichnet nur. Ohne WebGL bleibt der HTML-Automat sichtbar.
+// app.js steuert Walzen und Hebel; dieses Modul zeichnet nur. Ohne WebGL gibt es nur einen Hinweis.
 import * as THREE from "three";
 import { RoomEnvironment } from "./vendor/RoomEnvironment.js";
 
@@ -230,7 +230,7 @@ function init() {
     reels.length = 0;
     R.reels.forEach((rect, k) => {
       const H = rect.h;
-      const F = H * 0.84;                                 // Seitenhöhe wie im HTML-Automaten
+      const F = H * 0.84;                                 // Höhe einer Walzenseite
       const r = F / (2 * Math.tan(Math.PI / N));
       const arc = r * STEP;
       const drum = new THREE.Group();
@@ -539,6 +539,7 @@ function init() {
       arm.rotation.x = THREE.MathUtils.degToRad(theta);
       if (lv.sway) lv.sway.rotation.z = THREE.MathUtils.degToRad(-swayDeg);
       renderer.render(scene, camera);
+      canvas.classList.add("ready");   // erst sichtbar, wenn ein vollständiges Bild steht
     });
   }
 
@@ -564,9 +565,8 @@ function init() {
   let resizeTimer;
   new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(layout, 60); }).observe(machine);
   // Sobald die Schriften geladen sind, Schild und Walzen neu beschriften
+  // Falls die Schriften beim Aufbau noch nicht da waren: neu beschriften, sobald sie geladen sind
   if (document.fonts) document.fonts.ready.then(layout);
-  machine.classList.add("webgl");
-  leverEl.classList.add("webgl");
   return { invalidate, face, lever, knobClient };
 }
 
@@ -682,10 +682,31 @@ function plateTexture(r) {
   return t;
 }
 
-try {
-  const api = init();
-  if (api) window.Machine3D = api;
-} catch (err) {
-  document.querySelector(".machine").classList.remove("webgl");
-  console.warn("3D-Automat nicht verfügbar, nutze HTML-Automat:", err);
-}
+// Erst bauen, wenn die Schriften für Schild und Walzen geladen sind (höchstens 2,5 s warten) –
+// so erscheint der Automat gleich fertig beschriftet.
+const fontsReady = document.fonts
+  ? Promise.race([
+    Promise.all([document.fonts.load(`900 32px ${SLAB}`), document.fonts.load(`800 32px ${SLAB}`)]),
+    new Promise((r) => setTimeout(r, 2500)),
+  ]).catch(() => null)
+  : Promise.resolve();
+
+fontsReady.then(() => {
+  let api = null;
+  try {
+    api = init();
+  } catch (err) {
+    console.warn("3D-Automat nicht verfügbar:", err);
+  }
+  if (api) {
+    window.Machine3D = api;
+  } else {
+    // Ohne WebGL gibt es keinen Automaten, nur einen Hinweis
+    machine.querySelectorAll("canvas").forEach((c) => c.remove());
+    machine.hidden = true;
+    const note = document.createElement("p");
+    note.className = "no-webgl";
+    note.textContent = "Dieser Automat braucht WebGL – dein Browser hat es gerade ausgeschaltet.";
+    machine.after(note);
+  }
+});

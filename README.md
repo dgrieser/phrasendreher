@@ -86,7 +86,8 @@ Liste, siehe [`AGENT.md`](AGENT.md).
 
 Gehäuse, Walzen und Hebel werden mit [three.js](https://threejs.org) (MIT, mitgeliefert in `public/vendor/`) als
 3D-Modell gezeichnet (`public/machine3d.js`). Die Maße kommen aus dem unsichtbaren HTML-Gerüst, deshalb passt
-das Modell zu jeder Bildschirmbreite. Ohne WebGL bleibt der HTML/CSS-Automat sichtbar und funktioniert genauso.
+das Modell zu jeder Bildschirmbreite. Der Automat erscheint erst, wenn er fertig gezeichnet ist; ohne WebGL gibt es nur
+einen Hinweis. Beim Gewinnton fliegt Konfetti hinter dem Automaten (bei „Bewegung reduzieren“ nicht).
 
 Die meisten Geräusche entstehen live mit der Web Audio API. Das Zurückschnellen des Hebels und der Gewinnton beim
 Ergebnis sind Aufnahmen in `public/sounds/`, Details in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).
