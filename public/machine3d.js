@@ -539,7 +539,10 @@ function init() {
       arm.rotation.x = THREE.MathUtils.degToRad(theta);
       if (lv.sway) lv.sway.rotation.z = THREE.MathUtils.degToRad(-swayDeg);
       renderer.render(scene, camera);
-      canvas.classList.add("ready");   // erst sichtbar, wenn ein vollständiges Bild steht
+      if (!canvas.classList.contains("ready")) {
+        canvas.classList.add("ready");   // erst sichtbar, wenn ein vollständiges Bild steht
+        document.getElementById("loader")?.classList.add("done");
+      }
     });
   }
 
@@ -708,5 +711,6 @@ fontsReady.then(() => {
     note.className = "no-webgl";
     note.textContent = "Dieser Automat braucht WebGL – dein Browser hat es gerade ausgeschaltet.";
     machine.after(note);
+    document.getElementById("loader")?.classList.add("done");
   }
 });
