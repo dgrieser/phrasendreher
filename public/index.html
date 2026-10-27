@@ -15,6 +15,20 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Ladebildschirm: reines HTML/CSS, damit er sofort steht; machine3d.js blendet ihn aus, sobald der Automat fertig ist -->
+  <div class="loader" id="loader" role="status">
+    <div class="loader-marquee">
+      <div class="loader-bulbs" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="loader-plate">Phrasendreher</div>
+      <div class="loader-bulbs" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="loader-window" aria-hidden="true">
+        <span class="loader-reel"><span class="loader-strip"></span></span>
+        <span class="loader-reel"><span class="loader-strip"></span></span>
+        <span class="loader-reel"><span class="loader-strip"></span></span>
+      </div>
+    </div>
+    <p class="loader-text">Walzen werden geölt …</p>
+  </div>
   <div class="bokeh" id="bokeh" aria-hidden="true"></div>
   <canvas class="confetti" id="confetti" aria-hidden="true"></canvas>
 

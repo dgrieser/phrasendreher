@@ -27,6 +27,108 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ---------- Ladebildschirm ----------
+   Ein kleiner Automat: Mahagoni-Schild im Messingrahmen, Lauflichter, drei laufende Walzen. */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 24px;
+  background: radial-gradient(ellipse 90% 60% at 50% 40%, #3d1d0c 0%, #1d0c05 60%, #0f0603 100%);
+  transition: opacity .45s ease-out, visibility 0s linear .45s;
+}
+.loader.done { opacity: 0; visibility: hidden; }
+.loader-marquee {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(300px, 86vw);
+  padding: 16px 16px 18px;
+  border: 4px solid transparent;
+  border-radius: 50% 50% 14px 14px / 46px 46px 14px 14px;
+  background:
+    linear-gradient(100deg, #4a120a 0%, #7b2415 22%, #5a170d 45%, #852b19 68%, #4c130a 100%) padding-box,
+    var(--brass) border-box;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, .65), inset 0 0 0 2px rgba(0, 0, 0, .3);
+}
+.loader-plate {
+  padding: 7px 14px 5px;
+  border-radius: 6px;
+  background: var(--brass);
+  font: 900 1.05rem var(--slab);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #3a2208;
+  text-shadow: 0 1px 0 rgba(255, 244, 205, .75);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .55), inset 0 0 0 1px rgba(80, 45, 8, .55);
+}
+.loader-bulbs { display: flex; gap: 10px; }
+.loader-bulbs i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff6d8, #f1c25a 55%, #9a6418);
+  box-shadow: 0 0 8px 2px rgba(255, 200, 90, .55);
+  animation: bulb 1.2s steps(1, end) infinite;
+}
+/* Lauflicht: jede dritte Birne gleichzeitig, versetzt */
+.loader-bulbs i:nth-child(3n + 2) { animation-delay: -.4s; }
+.loader-bulbs i:nth-child(3n) { animation-delay: -.8s; }
+@keyframes bulb {
+  0% { opacity: 1; }
+  33% { opacity: .25; box-shadow: none; }
+}
+.loader-window {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 5px;
+  border-radius: 8px;
+  background: #140804;
+  box-shadow: 0 0 0 3px #c89a42, 0 3px 8px rgba(0, 0, 0, .6), inset 0 3px 8px #000;
+}
+.loader-reel {
+  position: relative;
+  height: 54px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #d6c296, #f3e6c8 15%, #f8eed6 50%, #f3e6c8 85%, #d6c296);
+}
+/* Schatten oben und unten, wo die Walze sich wegdreht */
+.loader-reel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(25, 8, 2, .85), rgba(25, 8, 2, 0) 35%, rgba(25, 8, 2, 0) 65%, rgba(25, 8, 2, .85));
+}
+/* Laufender Streifen: rote Doppellinien mit Raute, wie auf den Walzen des Automaten */
+.loader-strip {
+  position: absolute;
+  inset: -54px 0 0;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='27'%3E%3Cpath d='M7 12.2 13.5 18.75 7 25.3 0.5 18.75Z' fill='%23f6ebd1'/%3E%3Cpath d='M7 14.5 11.25 18.75 7 23 2.75 18.75Z' fill='%23b3261e'/%3E%3C/svg%3E") 50% 0 / 14px 27px repeat-y,
+    repeating-linear-gradient(180deg, transparent 0 16px, #b3261e 16px 17.5px, transparent 17.5px 20px, #b3261e 20px 21.5px, transparent 21.5px 27px) 50% 0 / 82% 27px repeat-y;
+  filter: blur(.6px);
+  animation: loaderReel .45s linear infinite;
+}
+.loader-reel:nth-child(2) .loader-strip { animation-duration: .38s; }
+.loader-reel:nth-child(3) .loader-strip { animation-duration: .52s; }
+@keyframes loaderReel { to { transform: translateY(54px); } }   /* zwei Felder à 27 px: nahtlos */
+.loader-text {
+  margin: 0;
+  font-style: italic;
+  color: var(--muted);
+  animation: breathe 1.8s ease-in-out infinite alternate;
+}
+@keyframes breathe { to { opacity: .45; } }
+
 /* ---------- Casino-Hintergrund ---------- */
 .bokeh {
   position: fixed;

@@ -419,7 +419,7 @@
   });
 
   // ---------- Konfetti ----------
-  // Beim Gewinnton schießt Konfetti von beiden Seiten und segelt im Hintergrund herab.
+  // Beim Gewinnton fliegt Konfetti von unten links und rechts herein und segelt im Hintergrund herab.
   const confetti = (() => {
     const canvas = $("confetti");
     const ctx = canvas.getContext("2d");
@@ -439,7 +439,7 @@
       const dt = Math.min(0.033, (now - last) / 1000);
       last = now;
       ctx.clearRect(0, 0, innerWidth, innerHeight);
-      parts = parts.filter((p) => p.y < innerHeight + 40 && p.life > 0);
+      parts = parts.filter((p) => (p.vy < 0 || p.y < innerHeight + 40) && p.life > 0);
       for (const p of parts) {
         // Steigen: Schwerkraft und wenig Luftwiderstand. Fallen: das Papier segelt mit eigener, langsamer
         // Sinkgeschwindigkeit und pendelt dabei hin und her.
@@ -467,21 +467,25 @@
     return function burst() {
       if (reduceMotion) return;
       resize();
-      // Zwei Kanonen am linken und rechten Rand schießen schräg nach oben zur Mitte; das Konfetti fliegt über den
-      // Automaten und segelt hinter ihm herab.
-      const r = document.querySelector(".window").getBoundingClientRect();
-      const oy = Math.min(innerHeight * 0.75, r.bottom);
+      // Zwei Kanonen unterhalb der unteren Ecken – außerhalb des sichtbaren Bereichs – schießen schräg nach oben zur
+      // Mitte. Man sieht das Konfetti nur hereinfliegen; es segelt dann hinter dem Automaten herab.
       for (let i = 0; i < 180; i++) {
         const side = i % 2 ? 1 : -1;                                       // -1 links, 1 rechts
-        const y = oy + (Math.random() - 0.5) * 60;
-        // Gipfel irgendwo im oberen Drittel: Abschussgeschwindigkeit daraus (Steigen ohne Luftwiderstand)
+        const x = side < 0 ? -30 - Math.random() * 50 : innerWidth + 30 + Math.random() * 50;
+        const y = innerHeight + 30 + Math.random() * 60;
+        // Gipfel irgendwo im oberen Drittel: senkrechte Abschussgeschwindigkeit daraus (Steigen ohne Luftwiderstand)
         const apex = innerHeight * (0.03 + Math.random() * 0.3);
-        const vy = -Math.sqrt(2 * 900 * Math.max(60, y - apex));
+        const vy = -Math.sqrt(2 * 900 * (y - apex));
+        // Waagrecht: bis zum Gipfel ein Ziel zwischen 15 % und 85 % der Breite erreichen.
+        // Mit Luftwiderstand (vx · 0,3^t) legt das Teil vx · (1 − 0,3^t) / ln(1/0,3) zurück.
+        const t = -vy / 900;
+        const target = innerWidth * (side < 0 ? 0.15 + Math.random() * 0.7 : 0.85 - Math.random() * 0.7);
+        const vx = ((target - x) * Math.log(1 / 0.3)) / (1 - Math.pow(0.3, t));
         const w = 5 + Math.random() * 6;
         parts.push({
-          x: side < 0 ? -8 : innerWidth + 8,
+          x,
           y,
-          vx: -side * (-vy) * (0.25 + Math.random() * 0.5),
+          vx,
           vy,
           w, h: w * (0.4 + Math.random() * 0.5),
           round: Math.random() < 0.18,
@@ -608,7 +612,7 @@
     }
 
     // Kurzes, gefiltertes Rauschen: klingt nach Metall und Holz.
-    function click(freq, dur, vol, when = 0) {
+    function click(freq, dur, vol, when = 0, q = 6) {
       if (!on || !ctx || !noise) return;
       const t = ctx.currentTime + when;
       const src = ctx.createBufferSource();
@@ -616,7 +620,7 @@
       const f = ctx.createBiquadFilter();
       f.type = "bandpass";
       f.frequency.value = freq;
-      f.Q.value = 6;
+      f.Q.value = q;
       const g = ctx.createGain();
       g.gain.setValueAtTime(vol, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -669,9 +673,14 @@
         click(2600 + k * 500, 0.03, 0.05);
       },
       // Raste der Ratsche: höher, je weiter der Hebel unten ist
-      ratchet(p, vol) { click(1500 + 900 * p, 0.035, 0.12 * vol); },
+      ratchet(p, vol) {
+        // Heller Zahn der Sperrklinke plus metallischer Körper – breitbandig, damit es auch aus Handylautsprechern
+        // deutlich zu hören ist
+        click(1700 + 900 * p, 0.03, 1.1 * vol, 0, 2);
+        click(850 + 300 * p, 0.045, 0.8 * vol, 0.004, 4);
+      },
       // Sperre während des Drehens: metallisches Anschlagen
-      lock(s) { click(1150, 0.05, 0.32 * s); click(380, 0.09, 0.28 * s, 0.006); tone(190, 0.07, 0.04 * s, 0, "square"); },
+      lock(s) { click(1150, 0.05, 1.0 * s, 0, 2.5); click(380, 0.09, 0.9 * s, 0.006, 3); tone(190, 0.07, 0.12 * s, 0, "square"); },
       // Hebel rastet ein, die Walzen laufen an: Aufnahme, bis sie geladen ist das synthetische Klacken
       clack() {
         if (play(samples.spinStart, 0.7)) return;
@@ -697,6 +706,9 @@
     lever.tick(dt);
     requestAnimationFrame(frame);
   })(last);
+
+  // Sicherheitsnetz: Kommt der 3D-Automat gar nicht (z. B. Skript lädt nicht), bleibt der Ladebildschirm nicht ewig stehen.
+  setTimeout(() => $("loader").classList.add("done"), 15000);
 
   ["Hebel", "ziehen", ""].forEach((t, k) => drums[k].show(t));
   $("actions").classList.add("hidden");
