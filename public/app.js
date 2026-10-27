@@ -670,7 +670,9 @@
         const now = performance.now();
         if (now - lastTick < 28) return;
         lastTick = now;
-        click(2600 + k * 500, 0.03, 0.05);
+        // Jede vorbeilaufende Walzenseite: heller Klick plus etwas Holz, breitbandig und deutlich hörbar
+        click(2300 + k * 350, 0.025, 0.6, 0, 2);
+        click(1050 + k * 150, 0.035, 0.4, 0.003, 4);
       },
       // Raste der Ratsche: höher, je weiter der Hebel unten ist
       ratchet(p, vol) {
@@ -688,7 +690,7 @@
         tone(110, 0.2, 0.12, 0, "triangle");
       },
       thud(strength) { click(500, 0.08, 0.25 * strength); },
-      settle(k) { click(700 - k * 80, 0.1, 0.4); tone(160 - k * 20, 0.18, 0.08, 0, "triangle"); },
+      settle(k) { click(700 - k * 80, 0.1, 1.3, 0, 3); tone(160 - k * 20, 0.18, 0.22, 0, "triangle"); },
       // Hebel schnellt zurück: Aufnahme mit Anlauf, so gestartet, dass ihr Anschlag mit dem des Hebels zusammenfällt.
       // Gibt die laufende Quelle zurück (zum Abbrechen) oder null, wenn die Aufnahme nicht spielt.
       leverReturn(secondsToImpact, s) { return play(samples.leverReturn, 0.35 + 0.55 * s, secondsToImpact - LEVER_IMPACT); },
