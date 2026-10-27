@@ -217,12 +217,14 @@ main { flex: 1; }
 .crown, .body, .base { padding: 4px; }
 .crown-wood {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  padding: 30px 12px 14px;
+  padding: 26px 12px 14px;
 }
-.bar { flex: 1; height: 4px; }
+/* Glühbirnen wie auf dem Ladebildschirm: zwei Reihen um das Schild, eine Reihe auf dem Sockel */
+.bulbs { display: flex; gap: 10px; }
+.bulb { flex: none; width: 9px; height: 9px; }
 .plate {
   margin: 0;
   padding: 7px 14px 5px;
@@ -239,9 +241,8 @@ main { flex: 1; }
 
 .base { margin-top: 3px; }
 .base-wood { padding: 18px 16px; }
-.rail { display: flex; align-items: center; gap: 8px; }
+.rail { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .rivet { flex: none; width: 13px; height: 13px; }
-.rod { flex: 1; height: 4px; }
 .gem { flex: none; width: 22px; height: 22px; }
 
 /* Die Leinwand liegt über dem ganzen Automaten und erscheint erst, wenn das Modell fertig gezeichnet ist

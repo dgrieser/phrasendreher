@@ -170,6 +170,7 @@
     body.classList.add("spinning");
     $("actions").classList.add("hidden");
     drums.forEach((d) => d.start());
+    window.Machine3D?.lights("spin");
     const [text] = await Promise.all([fetchPhrase(), wait(reduceMotion ? 300 : 1400)]);
     const parts = Dreher.splitInThree(text);
     await Promise.all(drums.map((d, k) => wait(k * (reduceMotion ? 80 : 350)).then(() => d.land(parts[k], reduceMotion ? 300 : 1100))));
@@ -192,6 +193,7 @@
       renderLists();
       sound.win();
       confetti();
+      window.Machine3D?.lights("win");
     }
   }
 
