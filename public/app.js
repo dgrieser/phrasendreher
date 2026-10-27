@@ -170,6 +170,7 @@
     body.classList.add("spinning");
     $("actions").classList.add("hidden");
     drums.forEach((d) => d.start());
+    window.Machine3D?.lights("spin");
     const [text] = await Promise.all([fetchPhrase(), wait(reduceMotion ? 300 : 1400)]);
     const parts = Dreher.splitInThree(text);
     await Promise.all(drums.map((d, k) => wait(k * (reduceMotion ? 80 : 350)).then(() => d.land(parts[k], reduceMotion ? 300 : 1100))));
@@ -192,6 +193,7 @@
       renderLists();
       sound.win();
       confetti();
+      window.Machine3D?.lights("win");
     }
   }
 
@@ -709,8 +711,8 @@
     requestAnimationFrame(frame);
   })(last);
 
-  // Sicherheitsnetz: Kommt der 3D-Automat gar nicht (z. B. Skript lädt nicht), bleibt der Ladebildschirm nicht ewig stehen.
-  setTimeout(() => $("loader").classList.add("done"), 15000);
+  // Sicherheitsnetz: Kommt der 3D-Automat gar nicht (z. B. Skript lädt nicht), sagt der Ladebildschirm Bescheid.
+  setTimeout(() => { if (!window.Machine3D && !$("loader").classList.contains("done")) window.Loader?.fail(); }, 15000);
 
   ["Hebel", "ziehen", ""].forEach((t, k) => drums[k].show(t));
   $("actions").classList.add("hidden");

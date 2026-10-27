@@ -51,7 +51,11 @@ function init() {
   woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping;
   woodTex.repeat.set(1 / 512, 1 / 512);       // UV der Vorderseiten = Pixelkoordinaten
   woodTex.anisotropy = 4;
-  const wood = new THREE.MeshPhysicalMaterial({ map: woodTex, color: 0x9c7c70, roughness: 0.5, envMapIntensity: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.2 });
+  const wood = new THREE.MeshPhysicalMaterial({ map: woodTex, color: 0x9a4a30, roughness: 0.6, specularIntensity: 0.15, envMapIntensity: 0.3, clearcoat: 0.18, clearcoatRoughness: 0.3 });
+  // Glühbirnen: an (leuchtet, mit Lichthof) und aus (dunkles Glas)
+  const bulbOn = new THREE.MeshStandardMaterial({ color: 0xfff3d0, emissive: 0xffc860, emissiveIntensity: 1.6, roughness: 0.3 });
+  const bulbOff = new THREE.MeshStandardMaterial({ color: 0x5a3214, emissive: 0x4a2208, emissiveIntensity: 0.6, roughness: 0.35 });
+  const haloMat = new THREE.SpriteMaterial({ map: haloTexture(), color: 0xffc65a, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.85 });
   const dark = new THREE.MeshBasicMaterial({ color: 0x140804 });
 
   // ---------- Gruppen ----------
@@ -114,13 +118,6 @@ function init() {
     return mesh;
   }
 
-  // Waagrechte Messingstange zwischen zwei x-Werten
-  function rod(x0, x1, yc, z, r) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, x1 - x0, 20).rotateZ(Math.PI / 2), brass);
-    m.position.set((x0 + x1) / 2, -yc, z);
-    cabinet.add(m);
-  }
-
   // ---------- Gehäuse ----------
   function buildCabinet(R) {
     clear(cabinet);
@@ -133,7 +130,7 @@ function init() {
     shadow.position.set(R.cabinet.x + R.cabinet.w / 2, -(R.cabinet.y + R.cabinet.h / 2 + 26), -DEPTH - 2);
     cabinet.add(shadow);
 
-    // Krone: Messingrand, Holz, feine Zierlinie
+    // Krone: Messingrand, Holz, feine Zierlinie; Glühbirnen siehe buildBulbs
     const ry = Math.min(64, R.crown.h * 0.7);
     const crownOuter = arch(new THREE.Shape(), R.crown, ry, 8);
     const crownWood = arch(new THREE.Shape(), R.crownWood, ry - 4, 6);
@@ -151,7 +148,6 @@ function init() {
     label.userData.ownMaterial = true;
     label.position.set(R.plate.x + R.plate.w / 2, -(R.plate.y + R.plate.h / 2), 6.05);
     cabinet.add(label);
-    for (const b of R.bars) rod(b.x, b.x + b.w, b.y + b.h / 2, 2, 2.2);
 
     // Mittelteil: Messingrand, Holz mit Ausschnitt, Lünette um das Fenster
     const bodyOuter = roundRect(new THREE.Shape(), R.body, 6);
@@ -179,7 +175,7 @@ function init() {
     glass.renderOrder = 2;
     cabinet.add(glass);
 
-    // Sockel mit Zierleiste: Nieten, Stangen, Raute
+    // Sockel mit Zierleiste: Nieten, Glühbirnen, Raute
     const baseOuter = roundRect(new THREE.Shape(), R.base, [6, 6, 12, 12]);
     baseOuter.holes.push(roundRect(new THREE.Path(), R.baseWood, [4, 4, 10, 10]));
     slab(baseOuter, 2, -DEPTH, brass, 1.5);
@@ -190,7 +186,6 @@ function init() {
       m.position.set(r.x + r.w / 2, -(r.y + r.h / 2), 0);
       cabinet.add(m);
     }
-    for (const r of R.rods) rod(r.x, r.x + r.w, r.y + r.h / 2, 2, 2.2);
     if (R.gem) {
       const s = R.gem.w;
       const gem = slab(roundRect(new THREE.Shape(), { x: -s / 2, y: -s / 2, w: s, h: s }, 3), 5, -1, brass, 2);
@@ -198,6 +193,87 @@ function init() {
       gem.position.y = -(R.gem.y + R.gem.h / 2);
       gem.rotation.z = Math.PI / 4;
     }
+  }
+
+  // ---------- Glühbirnen ----------
+  // Wie auf dem Ladebildschirm: zwei Reihen um das Namensschild, eine auf dem Sockel. Jede Birne sitzt in einer
+  // Messingfassung; an leuchtet sie und hat einen Lichthof, aus ist sie dunkles Glas.
+  const bulbs = [];        // { mesh, halo, row, i, seq }
+  const bulbGroup = new THREE.Group();
+  scene.add(bulbGroup);
+
+  function buildBulbs(R) {
+    clear(bulbGroup);
+    bulbs.length = 0;
+    // Lauflicht-Reihenfolge: obere Reihe nach rechts, untere zurück nach links, dann der Sockel nach rechts
+    const rows = [R.crownBulbs[0] || [], (R.crownBulbs[1] || []).slice().reverse(), R.baseBulbs];
+    let seq = 0;
+    rows.forEach((row, r) => row.forEach((b, i) => {
+      const x = b.x + b.w / 2, y = -(b.y + b.h / 2), rad = b.w / 2;
+      const socket = new THREE.Mesh(new THREE.CylinderGeometry(rad + 1.6, rad + 2, 2, 20).rotateX(Math.PI / 2), brassDark);
+      socket.position.set(x, y, 1);
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(rad, 20, 14), bulbOff);
+      mesh.position.set(x, y, 2 + rad * 0.6);
+      const halo = new THREE.Sprite(haloMat);
+      halo.scale.set(rad * 6.5, rad * 6.5, 1);
+      halo.position.set(x, y, 2 + rad * 2);
+      halo.visible = false;
+      halo.renderOrder = 3;
+      bulbGroup.add(socket, mesh, halo);
+      // Für Muster in der Reihe zählt die Position von links (die untere Kronenreihe ist oben umgedreht)
+      bulbs.push({ mesh, halo, row: r, i: r === 1 ? row.length - 1 - i : i, seq: seq++ });
+    }));
+    applyLights(true);
+  }
+
+  // Lichtmuster je Zustand: alle Muster sind gestuft wie echte Lauflichter, gezeichnet wird nur beim Wechsel.
+  //   idle  – ruhiges Lauflicht, jede dritte Birne (wie der Ladebildschirm)
+  //   spin  – schnelle Lichterkette, die rundherum läuft
+  //   win   – alle Birnen blinken gemeinsam
+  //   after – abwechselnd jede zweite Birne, danach zurück zu idle
+  const PATTERNS = {
+    idle: { step: 400, on: (b, n) => (b.i + n) % 3 === 0 },
+    spin: { step: 70, on: (b, n) => (((b.seq - n) % 6) + 6) % 6 < 2 },
+    win: { step: 120, on: (b, n) => n % 2 === 0, next: "after", duration: 1600 },
+    after: { step: 260, on: (b, n) => (b.i + n) % 2 === 0, next: "idle", duration: 6000 },
+  };
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let lightState = "idle";
+  let lightSince = performance.now();
+  let lightTimer = 0;
+
+  function applyLights(force) {
+    const p = PATTERNS[lightState];
+    const n = Math.floor((performance.now() - lightSince) / p.step);
+    let changed = false;
+    for (const b of bulbs) {
+      const on = reduceMotion ? true : p.on(b, n);
+      if (force || b.on !== on) {
+        b.on = on;
+        b.mesh.material = on ? bulbOn : bulbOff;
+        b.halo.visible = on;
+        changed = true;
+      }
+    }
+    if (changed) invalidate();
+  }
+
+  function tickLights() {
+    clearTimeout(lightTimer);
+    const p = PATTERNS[lightState];
+    if (p.next && performance.now() - lightSince >= p.duration) {
+      lightState = p.next;
+      lightSince = performance.now();
+    }
+    applyLights(false);
+    if (!reduceMotion) lightTimer = setTimeout(tickLights, PATTERNS[lightState].step);
+  }
+
+  function lights(state) {
+    if (!PATTERNS[state]) return;
+    lightState = state;
+    lightSince = performance.now();
+    tickLights();
   }
 
   // ---------- Walzen ----------
@@ -491,11 +567,13 @@ function init() {
     return {
       canvas: c,
       cabinet: rel(q(".cabinet")),
-      crown: rel(q(".crown")), crownWood: rel(q(".crown-wood")), plate: rel(q(".plate")), bars: all(".crown .bar"),
+      crown: rel(q(".crown")), crownWood: rel(q(".crown-wood")), plate: rel(q(".plate")),
+      crownBulbs: [...machine.querySelectorAll(".crown .bulbs")].map((row) => [...row.children].map(rel)),
+      baseBulbs: all(".rail .bulb"),
       body: rel(q(".body")), bodyWood: rel(q(".body-wood")), bezel: rel(q(".bezel")), window: rel(q(".window")),
       reels: all(".reel"),
       base: rel(q(".base")), baseWood: rel(q(".base-wood")),
-      rivets: all(".rivet"), rods: all(".rail .rod"), gem: all(".rail .gem")[0],
+      rivets: all(".rivet"), gem: all(".rail .gem")[0],
       lever: rel(leverEl),
     };
   }
@@ -516,7 +594,9 @@ function init() {
     camera.updateProjectionMatrix();
 
     buildCabinet(R);
+    buildBulbs(R);
     buildReels(R);
+    window.Loader?.progress(0.85);   // Modell steht, gleich das erste Bild
     // Hebel: Drehpunkt bei 55 % der Hebelspalte, Arm 38 % ihrer Höhe – wie im HTML-Hebel
     const px = R.lever.x + R.lever.w / 2;
     const py = R.lever.y + R.lever.h * 0.55;
@@ -541,7 +621,7 @@ function init() {
       renderer.render(scene, camera);
       if (!canvas.classList.contains("ready")) {
         canvas.classList.add("ready");   // erst sichtbar, wenn ein vollständiges Bild steht
-        document.getElementById("loader")?.classList.add("done");
+        window.Loader?.done();
       }
     });
   }
@@ -565,12 +645,13 @@ function init() {
   }
 
   layout();
+  tickLights();
   let resizeTimer;
   new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(layout, 60); }).observe(machine);
   // Sobald die Schriften geladen sind, Schild und Walzen neu beschriften
   // Falls die Schriften beim Aufbau noch nicht da waren: neu beschriften, sobald sie geladen sind
   if (document.fonts) document.fonts.ready.then(layout);
-  return { invalidate, face, lever, knobClient };
+  return { invalidate, face, lever, knobClient, lights };
 }
 
 // ---------- Texturen ----------
@@ -586,13 +667,13 @@ function woodCanvas() {
   // Maserung: wellige, waagrechte Fasern, an den Rändern nahtlos
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let n = 0; n < 340; n++) {
+  for (let n = 0; n < 200; n++) {
     const y0 = rnd() * s;
     const amp = 1 + rnd() * 7;
     const k = 1 + Math.floor(rnd() * 3);
     const ph = rnd() * Math.PI * 2;
     const light = rnd() < 0.3;
-    ctx.strokeStyle = light ? `rgba(255,190,140,${0.02 + rnd() * 0.04})` : `rgba(20,4,1,${0.05 + rnd() * 0.14})`;
+    ctx.strokeStyle = light ? `rgba(255,190,140,${0.01 + rnd() * 0.025})` : `rgba(20,4,1,${0.02 + rnd() * 0.06})`;
     ctx.lineWidth = 0.6 + rnd() * 2.4;
     for (const off of [-s, 0, s]) {
       ctx.beginPath();
@@ -604,6 +685,20 @@ function woodCanvas() {
     }
   }
   return c;
+}
+
+function haloTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d");
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.18, "rgba(255,255,255,.75)");
+  g.addColorStop(0.45, "rgba(255,255,255,.18)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
 }
 
 function shadowTexture() {
@@ -685,6 +780,8 @@ function plateTexture(r) {
   return t;
 }
 
+window.Loader?.progress(0.6);   // three.js ist geladen, dieses Modul läuft
+
 // Erst bauen, wenn die Schriften für Schild und Walzen geladen sind (höchstens 2,5 s warten) –
 // so erscheint der Automat gleich fertig beschriftet.
 const fontsReady = document.fonts
@@ -711,6 +808,6 @@ fontsReady.then(() => {
     note.className = "no-webgl";
     note.textContent = "Dieser Automat braucht WebGL – dein Browser hat es gerade ausgeschaltet.";
     machine.after(note);
-    document.getElementById("loader")?.classList.add("done");
+    window.Loader?.dismiss();
   }
 });
