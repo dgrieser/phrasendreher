@@ -86,8 +86,9 @@ Liste, siehe [`AGENT.md`](AGENT.md).
 
 Gehäuse, Walzen und Hebel werden mit [three.js](https://threejs.org) (MIT, mitgeliefert in `public/vendor/`) als
 3D-Modell gezeichnet (`public/machine3d.js`). Die Maße kommen aus dem unsichtbaren HTML-Gerüst, deshalb passt
-das Modell zu jeder Bildschirmbreite. Bis der Automat fertig gezeichnet ist, steht ein Ladebildschirm im selben Stil;
-ohne WebGL gibt es nur einen Hinweis. Beim Gewinnton fliegt Konfetti von unten herein und hinter dem Automaten herab (bei „Bewegung reduzieren“ nicht).
+das Modell zu jeder Bildschirmbreite. Bis der Automat fertig gezeichnet ist, steht ein Ladebildschirm im selben Stil
+(`public/loader.js`): Die Glühbirnen zeigen den echten Ladefortschritt, eine Fallblattanzeige verdreht bekannte
+Redewendungen zu Lade-Weisheiten. Ohne WebGL gibt es nur einen Hinweis. Beim Gewinnton fliegt Konfetti von unten herein und hinter dem Automaten herab (bei „Bewegung reduzieren“ nicht).
 
 Die meisten Geräusche entstehen live mit der Web Audio API. Das Anlaufen der Walzen, das Zurückschnellen des Hebels
 und der Gewinnton beim Ergebnis sind Aufnahmen in `public/sounds/`, Details in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).

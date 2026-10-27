@@ -711,8 +711,8 @@
     requestAnimationFrame(frame);
   })(last);
 
-  // Sicherheitsnetz: Kommt der 3D-Automat gar nicht (z. B. Skript lädt nicht), bleibt der Ladebildschirm nicht ewig stehen.
-  setTimeout(() => $("loader").classList.add("done"), 15000);
+  // Sicherheitsnetz: Kommt der 3D-Automat gar nicht (z. B. Skript lädt nicht), sagt der Ladebildschirm Bescheid.
+  setTimeout(() => { if (!window.Machine3D && !$("loader").classList.contains("done")) window.Loader?.fail(); }, 15000);
 
   ["Hebel", "ziehen", ""].forEach((t, k) => drums[k].show(t));
   $("actions").classList.add("hidden");

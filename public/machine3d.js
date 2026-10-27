@@ -596,6 +596,7 @@ function init() {
     buildCabinet(R);
     buildBulbs(R);
     buildReels(R);
+    window.Loader?.progress(0.85);   // Modell steht, gleich das erste Bild
     // Hebel: Drehpunkt bei 55 % der Hebelspalte, Arm 38 % ihrer Höhe – wie im HTML-Hebel
     const px = R.lever.x + R.lever.w / 2;
     const py = R.lever.y + R.lever.h * 0.55;
@@ -620,7 +621,7 @@ function init() {
       renderer.render(scene, camera);
       if (!canvas.classList.contains("ready")) {
         canvas.classList.add("ready");   // erst sichtbar, wenn ein vollständiges Bild steht
-        document.getElementById("loader")?.classList.add("done");
+        window.Loader?.done();
       }
     });
   }
@@ -779,6 +780,8 @@ function plateTexture(r) {
   return t;
 }
 
+window.Loader?.progress(0.6);   // three.js ist geladen, dieses Modul läuft
+
 // Erst bauen, wenn die Schriften für Schild und Walzen geladen sind (höchstens 2,5 s warten) –
 // so erscheint der Automat gleich fertig beschriftet.
 const fontsReady = document.fonts
@@ -805,6 +808,6 @@ fontsReady.then(() => {
     note.className = "no-webgl";
     note.textContent = "Dieser Automat braucht WebGL – dein Browser hat es gerade ausgeschaltet.";
     machine.after(note);
-    document.getElementById("loader")?.classList.add("done");
+    window.Loader?.dismiss();
   }
 });
