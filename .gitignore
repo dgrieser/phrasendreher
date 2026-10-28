@@ -1,2 +1,5 @@
 .env
 node_modules
+blender/assets/
+blender/build/
+__pycache__/

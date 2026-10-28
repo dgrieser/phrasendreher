@@ -36,6 +36,27 @@ Server beim Start selbst – dafür ist nichts zu tun.
 `--all` erzeugt alle Umschreibungen neu und **überschreibt dabei alle Handkorrekturen**. Nur verwenden, wenn
 das ausdrücklich gewünscht ist.
 
+## Den Automaten ändern (Blender)
+
+Das Modell steht als Code in `blender/automat.py` (Maße oben in der Datei, Materialien, Bauteile, Licht, Kamera).
+`blender/render.py` baut die Szene, rendert mit Cycles und schreibt alles nach `public/automat/`. Nach jeder Änderung am
+Modell neu rendern und die Dateien in `public/automat/` mit committen:
+
+```sh
+python3 -m venv .venv-blender && .venv-blender/bin/pip install -r blender/requirements.txt
+.venv-blender/bin/python blender/render.py --quick   # Vorschau in ~1 min (600 px, wenige Samples)
+.venv-blender/bin/python blender/render.py           # endgültig: 1200 px, 320 Samples – auf 4 Kernen gut 30 min
+```
+
+Texturen, Umgebung und Schrift lädt das Skript beim ersten Lauf nach `blender/assets/` (nicht eingecheckt).
+`blender/build/automat.blend` ist die fertige Szene zum Ansehen in Blender, ebenfalls nicht eingecheckt.
+
+- Walzen: Lage, Radius und Breite gehen über `szene.json` an `public/machine3d.js` – die Zahl der Seiten (`N = 12`)
+  muss zu `public/app.js` passen.
+- Hebel: Endanschlag `LEVER_MAX` in `render.py` und `machine3d.js` gleich `MAX` in `app.js` halten.
+- Nach einem neuen Render das Seitenverhältnis in `public/style.css` (`.machine { aspect-ratio }`) an `bild` in
+  `public/automat/szene.json` anpassen (sonst springt die Seite kurz beim Laden).
+
 ## Sonst
 
 - Prompt und Beispiele: `server/llm.js` (`SYSTEM_PROMPT`). Beispiele mit beiden Ausgangs-Redewendungen angeben;

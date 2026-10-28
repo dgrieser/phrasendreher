@@ -84,11 +84,28 @@ Liste, siehe [`AGENT.md`](AGENT.md).
 
 ## Der Automat in 3D
 
-Gehäuse, Walzen und Hebel werden mit [three.js](https://threejs.org) (MIT, mitgeliefert in `public/vendor/`) als
-3D-Modell gezeichnet (`public/machine3d.js`). Die Maße kommen aus dem unsichtbaren HTML-Gerüst, deshalb passt
-das Modell zu jeder Bildschirmbreite. Bis der Automat fertig gezeichnet ist, steht ein Ladebildschirm im selben Stil
-(`public/loader.js`): Die Glühbirnen zeigen den echten Ladefortschritt, eine Fallblattanzeige verdreht bekannte
-Redewendungen zu Lade-Weisheiten. Ohne WebGL gibt es nur einen Hinweis. Beim Gewinnton fliegt Konfetti von unten herein und hinter dem Automaten herab (bei „Bewegung reduzieren“ nicht).
+Der Automat ist ein 3D-Modell aus [Blender](https://www.blender.org): Mahagoni-Gehäuse mit gemasertem Furnier unter
+Klarlack, Messingrahmen, Namensschild mit erhabenen Lettern auf roter Emaille, Glühbirnen in Chromfassungen, ein
+geschliffener Rubin, Münzeinwurf, Schlossblech und der Hebel an der Seitenwand. Das ganze Modell entsteht aus Code
+(`blender/automat.py`) und wird mit Cycles fotorealistisch gerendert (`blender/render.py`, Anleitung in
+[`AGENT.md`](AGENT.md)).
+
+Im Browser setzt [three.js](https://threejs.org) (MIT, mitgeliefert in `public/vendor/`) daraus den Automaten zusammen
+(`public/machine3d.js`), mit genau der Kamera des Renders:
+
+- **Gehäuse:** das gerenderte Bild (`public/automat/automat.webp`), mit Löchern, wo die Walzen hindurchscheinen.
+- **Walzen:** live gezeichnet, mit den Texten auf zwölf Seiten je Walze und Bewegungsunschärfe. Licht, Schatten des
+  Fensterschachts und die Spiegelung der Glasscheibe kommen aus dem Render (`walzen.webp`).
+- **Glühbirnen:** das gerenderte Leuchten aller Birnen samt Licht auf Holz und Messing (`gluehen.webp`) wird pro Birne
+  ein- und ausgeblendet – mit kurzem An- und Nachglühen wie bei echten Glühfäden.
+- **Hebel:** das Modell aus Blender (`hebel.glb`), gespiegelt in einer Rundum-Aufnahme vom Hebel aus (`umgebung.hdr`),
+  mit weichem Schatten auf der Seitenwand.
+
+Die Leinwand hat das Seitenverhältnis des Renders und passt sich jeder Bildschirmbreite an. Bis der Automat fertig
+gezeichnet ist, steht ein Ladebildschirm im selben Stil (`public/loader.js`): Die Glühbirnen zeigen den echten
+Ladefortschritt, eine Fallblattanzeige verdreht bekannte Redewendungen zu Lade-Weisheiten. Ohne WebGL gibt es nur
+einen Hinweis. Beim Gewinnton fliegt Konfetti von unten herein und hinter dem Automaten herab (bei „Bewegung
+reduzieren“ nicht). Texturen, Umgebung und Schrift fürs Rendern: [`public/automat/QUELLEN.md`](public/automat/QUELLEN.md).
 
 Die meisten Geräusche entstehen live mit der Web Audio API. Das Anlaufen der Walzen, das Zurückschnellen des Hebels
 und der Gewinnton beim Ergebnis sind Aufnahmen in `public/sounds/`, Details in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).
