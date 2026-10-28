@@ -218,6 +218,7 @@
     let lastNotch = 0;
     let autoT = 0;
     let drag = null;
+    let caught = false;      // Hebel eingerastet, aber der Finger liegt noch drauf (siehe step)
 
     function render() {
       if (window.Machine3D) window.Machine3D.lever(theta, sway);
@@ -346,6 +347,7 @@
       const tapped = drag.moved < 6 && Date.now() - drag.t0 < 350;
       drag = null;
       el.classList.remove("dragging");
+      if (caught) { caught = false; fire(); return; }   // losgelassen: jetzt darf der Ton, jetzt geht es los
       mode = "spring";
       if (tapped && theta < 1) { mode = "rest"; pull(); }
     }
@@ -364,7 +366,12 @@
         theta += vel * dt;
         if (theta < 0) { theta = 0; vel = Math.max(0, vel); }
         if (locked) { if (theta > LOCK) hitLock(); else if (theta < LOCK - 1.5) atLock = false; }
-        else if (theta >= TRIGGER) fire();
+        else if (theta >= TRIGGER) {
+          // Auf dem Telefon gibt der Browser den Ton erst beim Loslassen frei. Ist er noch gesperrt, bleibt der Hebel
+          // eingerastet unten, bis der Finger loslässt – dann startet alles mit Klang statt stumm.
+          if (sound.ready()) fire();
+          else { caught = true; theta = TRIGGER; vel = 0; }
+        }
       } else if (mode === "auto") {
         autoT += dt;
         const t = clamp(autoT / 0.3, 0, 1);
@@ -603,9 +610,11 @@
     render();
     btn.addEventListener("click", () => { on = !on; store.set("sound", on); render(); });
 
-    // Nur bei laufendem Ton: solange er noch gesperrt ist, würden sich Geräusche stauen und beim Freischalten auf
-    // einmal losplatzen
-    const live = () => on && ctx && ctx.state === "running";
+    // Nur bei laufendem (oder gerade während einer Geste freigegebenem) Ton: solange er noch gesperrt ist, würden
+    // sich Geräusche stauen und beim Freischalten auf einmal losplatzen
+    let resuming = false;
+    let broken = !(window.AudioContext || window.webkitAudioContext);   // kein Web Audio: nichts, worauf zu warten wäre
+    const live = () => on && ctx && (ctx.state === "running" || resuming);
 
     function tone(freq, dur, vol, when = 0, type = "sine") {
       if (!live()) return;
@@ -675,7 +684,13 @@
     // Ton freischalten: Browser erlauben das nur bei einer Geste. Auf Telefonen zählt dabei erst das Loslassen
     // (pointerup/touchend), nicht das Aufsetzen – daher bei jeder dafür tauglichen Geste irgendwo auf der Seite,
     // bis der Ton läuft. Ein stiller Puffer weckt iOS vollständig auf.
-    function unlock() {
+    // Zählt dieses Ereignis als Geste, die Ton erlaubt? (Telefon: erst Loslassen; Maus: schon Drücken)
+    function activating(e) {
+      if (navigator.userActivation) return navigator.userActivation.isActive;
+      if (!e) return false;
+      return e.type !== "pointerdown" || e.pointerType === "mouse";
+    }
+    function unlock(e) {
       try {
         if (!ctx) {
           ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -689,11 +704,12 @@
           silent.connect(ctx.destination);
           silent.start();
           const p = ctx.resume();
-          if (p) p.then(stopListening, () => {});
+          if (activating(e)) resuming = true;
+          if (p) p.then(() => { resuming = false; stopListening(); }, () => { resuming = false; });
         } else {
           stopListening();
         }
-      } catch (e) { ctx = null; }
+      } catch (err) { ctx = null; broken = true; }
     }
     const GESTURES = ["pointerdown", "pointerup", "touchend", "click", "keydown"];
     function stopListening() {
@@ -703,6 +719,8 @@
 
     return {
       unlock,
+      // Darf jetzt ein Geräusch erklingen? (Ton aus zählt als bereit – dann gibt es nichts zu warten)
+      ready: () => !on || broken || live(),
       tick(k) {
         const now = performance.now();
         if (now - lastTick < 28) return;
