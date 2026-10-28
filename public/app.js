@@ -296,7 +296,7 @@
     }
 
     function pull() {
-      if (mode !== "rest") return;
+      if (mode !== "rest" || body.classList.contains("intro")) return;   // erst nach dem Kameraflug
       sound.unlock();
       if (busy) {
         // Walzen laufen noch: kurzer Ruck bis an die Sperre

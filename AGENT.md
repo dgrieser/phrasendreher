@@ -45,8 +45,13 @@ Modell neu rendern und die Dateien in `public/automat/` mit committen:
 ```sh
 python3 -m venv .venv-blender && .venv-blender/bin/pip install -r blender/requirements.txt
 .venv-blender/bin/python blender/render.py --quick   # Vorschau in ~1 min (600 px, wenige Samples)
-.venv-blender/bin/python blender/render.py           # endgültig: 1200 px, 320 Samples – auf 4 Kernen gut 30 min
+.venv-blender/bin/python blender/render.py           # endgültig mit Intro – auf 4 Kernen rund 3 Stunden
+.venv-blender/bin/python blender/render.py --ohne-intro   # nur die Spielansicht (gut 30 min)
+.venv-blender/bin/python blender/render.py --nur-intro    # nur den Kameraflug (Video, braucht ffmpeg)
 ```
+
+Das Intro (Startwinkel, Dauer, Bildrate) steht oben im Abschnitt „Intro“ von `render.py`. Sein letztes Bild muss zur
+Spielansicht passen – nach Änderungen am Modell daher immer beides neu rendern.
 
 Texturen, Umgebung und Schrift lädt das Skript beim ersten Lauf nach `blender/assets/` (nicht eingecheckt).
 `blender/build/automat.blend` ist die fertige Szene zum Ansehen in Blender, ebenfalls nicht eingecheckt.

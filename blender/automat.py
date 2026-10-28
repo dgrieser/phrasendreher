@@ -24,6 +24,7 @@ DOWNLOADS = {
        for t in ("natural_walnut_veneer", "lacquered_cherry_wood") for m in ("diff", "rough", "nor_gl")},
     "billiard_hall_2k.hdr": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/billiard_hall_2k.hdr",
     "rokkitt_black.ttf": "https://fonts.gstatic.com/s/rokkitt/v39/qFdb35qfgYFjGy5hukqqhw5XeRgdi1pbcJDL.ttf",
+    "rokkitt_extrabold.ttf": "https://fonts.gstatic.com/s/rokkitt/v39/qFdb35qfgYFjGy5hukqqhw5XeRgdi1pycJDL.ttf",
 }
 
 
@@ -479,6 +480,18 @@ def glass_material(name):
     boost.operation = "MULTIPLY"
     boost.inputs[1].default_value = 1.6
     nt.links.new(fr.outputs["Fac"], boost.inputs[0])
+    # Nur die Vorderseite spiegelt: die Durchsicht geht gerade hindurch (keine Brechung), auf der Rückseite würde
+    # der Fresnel-Knoten bei schrägem Blick Totalreflexion melden und die Scheibe schwarz färben
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    front = nt.nodes.new("ShaderNodeMath")
+    front.operation = "SUBTRACT"
+    front.inputs[0].default_value = 1.0
+    nt.links.new(geo.outputs["Backfacing"], front.inputs[1])
+    only_front = nt.nodes.new("ShaderNodeMath")
+    only_front.operation = "MULTIPLY"
+    nt.links.new(boost.outputs[0], only_front.inputs[0])
+    nt.links.new(front.outputs[0], only_front.inputs[1])
+    boost = only_front
     mix = nt.nodes.new("ShaderNodeMixShader")
     nt.links.new(boost.outputs[0], mix.inputs["Fac"])
     nt.links.new(tr.outputs[0], mix.inputs[1])
@@ -599,21 +612,25 @@ def gem_mesh(name, r, depth, mat):
     return mesh_obj(name, bm, mat, smooth=0)
 
 
-def reel_arc(name, center, mat, half_angle=math.radians(38), seg=24):
-    """Sichtbarer Teil einer Walze: Zylinderstück um die x-Achse, Mitte zum Betrachter."""
+REEL_ARC = math.radians(38)   # so weit (±) ist jede Walze modelliert – mehr ist durchs Fenster nie zu sehen
+
+
+def reel_arc(name, center, mat, seg=24):
+    """Sichtbarer Teil einer Walze: Zylinderstück um die x-Achse, Mitte zum Betrachter. UV: u quer, v über den
+    Winkel (0 = −REEL_ARC unten, 1 = +REEL_ARC oben) – für die bedruckten Walzen im Intro."""
     bm = bmesh.new()
+    uv = bm.loops.layers.uv.new()
     rows = []
     for j in range(seg + 1):
-        a = -half_angle + (j / seg) * 2 * half_angle
+        a = -REEL_ARC + (j / seg) * 2 * REEL_ARC
         y = center.y - REEL_R * math.cos(a)
         z = center.z + REEL_R * math.sin(a)
-        rows.append([bm.verts.new((x, y, z)) for x in (-REEL_W / 2, REEL_W / 2)])
+        rows.append([(bm.verts.new((x, y, z)), (u, j / seg)) for u, x in ((0, -REEL_W / 2), (1, REEL_W / 2))])
     for j in range(seg):
-        bm.faces.new((rows[j][0], rows[j][1], rows[j + 1][1], rows[j + 1][0]))
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    for f in bm.faces:
-        if f.normal.y > 0:
-            f.normal_flip()
+        quad = (rows[j][1], rows[j + 1][1], rows[j + 1][0], rows[j][0])   # Normale zum Betrachter (−y)
+        f = bm.faces.new([v for v, _ in quad])
+        for loop, (_, co) in zip(f.loops, quad):
+            loop[uv].uv = co
     return mesh_obj(name, bm, mat, smooth=80)
 
 
@@ -701,6 +718,19 @@ def build(M):
     centers = reel_centers()
     for k, c in enumerate(centers):
         S["reels"].append(reel_arc(f"Walze {k}", c, M["holdout"]))
+    # Walzenbeleuchtung wie in echten Automaten: je Walze eine Leuchtleiste hinter der oberen Kante,
+    # unsichtbar für Kamera und Spiegelungen
+    for c in centers:
+        lamp = bpy.data.lights.new("Walzenlicht", "AREA")
+        lamp.shape = "RECTANGLE"
+        lamp.size, lamp.size_y = WIN_W * 0.9, 0.004
+        lamp.energy = 0.42
+        lamp.color = (1.0, 0.88, 0.7)
+        o = link(bpy.data.objects.new("Walzenlicht", lamp))
+        o.location = (0, GLASS_Y + 0.006, c.z + REEL_H / 2 + 0.001)
+        o.rotation_euler = (Vector((0, REEL_FRONT, c.z - 0.02)) - o.location).to_track_quat("-Z", "Y").to_euler()
+        o.visible_camera = False
+        o.visible_glossy = False
     for k in range(4):
         if k == 0:
             zc = centers[0].z + REEL_H / 2 + WIN_PAD / 2 + 0.002
@@ -962,16 +992,15 @@ def world_and_lights():
 
 
 def camera():
+    """Kamera (Lage und Ausschnitt setzt render.py: frontal fürs Spiel, auf einer Bahn fürs Intro)."""
     sc = bpy.context.scene
     cd = bpy.data.cameras.new("Kamera")
-    cd.lens = 85
+    cd.lens = 77
     cd.sensor_fit = "VERTICAL"
     cd.sensor_height = 24
     cam = link(bpy.data.objects.new("Kamera", cd))
-    target = Vector((0.045, 0.1, 0.405))
-    yaw, pitch, dist = math.radians(17), math.radians(7), 2.95
-    cam.location = target + Vector((math.sin(yaw) * math.cos(pitch), -math.cos(yaw) * math.cos(pitch), math.sin(pitch))) * dist
-    cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
+    cam.location = (0, -2.8, 0.4)
+    cam.rotation_euler = (math.pi / 2, 0, 0)
     sc.camera = cam
     return cam
 

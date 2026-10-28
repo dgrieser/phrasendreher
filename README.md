@@ -90,8 +90,13 @@ geschliffener Rubin, Münzeinwurf, Schlossblech und der Hebel an der Seitenwand.
 (`blender/automat.py`) und wird mit Cycles fotorealistisch gerendert (`blender/render.py`, Anleitung in
 [`AGENT.md`](AGENT.md)).
 
-Im Browser setzt [three.js](https://threejs.org) (MIT, mitgeliefert in `public/vendor/`) daraus den Automaten zusammen
-(`public/machine3d.js`), mit genau der Kamera des Renders:
+Zum Start fliegt die Kamera in einem vorab gerenderten Video (`intro.mp4`/`intro.webm`, 2,5 s) von schräg oben rechts
+zur Frontalansicht; das letzte Bild des Videos ist genau die Spielansicht, dort wird auf den Live-Automaten
+überblendet. Während des Flugs ist der Hebel gesperrt. Bei „Bewegung reduzieren“ (oder wenn das Video nicht abspielt)
+steht der Automat gleich frontal da.
+
+Gespielt wird frontal, auf Augenhöhe. Im Browser setzt [three.js](https://threejs.org) (MIT, mitgeliefert in
+`public/vendor/`) den Automaten zusammen (`public/machine3d.js`), mit genau der Kamera des Renders:
 
 - **Gehäuse:** das gerenderte Bild (`public/automat/automat.webp`), mit Löchern, wo die Walzen hindurchscheinen.
 - **Walzen:** live gezeichnet, mit den Texten auf zwölf Seiten je Walze und Bewegungsunschärfe. Licht, Schatten des

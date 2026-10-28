@@ -231,6 +231,7 @@ main { flex: 1; }
   border-radius: 10px;
 }
 .lever.dragging { cursor: grabbing; }
+body.intro .lever { pointer-events: none; }   /* während des Kameraflugs zum Automaten */
 body.spinning .lever { cursor: progress; }
 .lever:focus-visible { outline: 2px solid #f1d38a; outline-offset: 2px; }
 

@@ -5,11 +5,13 @@
 #   walzen.webp    Ausschnitt um das Fenster: oben das Licht auf einer weißen Walze, unten die Spiegelung der Scheibe
 #   umgebung.hdr   Rundumbild vom Hebel aus (für Spiegelungen auf Chrom und Knauf, three.js-Equirect-Konvention)
 #   hebel.glb      der bewegliche Hebel (glTF, Blender-Koordinaten: z oben)
-#   szene.json     Kamera, Walzen, Birnenpositionen, Hebel, Licht
+#   intro.mp4      Kameraflug von schräg oben rechts zur Frontalansicht (links Farbe, rechts Alpha; dazu intro.webm)
+#   szene.json     Kamera, Walzen, Birnenpositionen, Hebel, Licht, Intro
 #
-# Aufruf (bpy und pillow im selben Python):
+# Aufruf (bpy und pillow im selben Python, dazu ffmpeg):
 #   python blender/render.py              # endgültig, 1200 px breit
 #   python blender/render.py --quick      # schnelle Vorschau mit wenigen Samples
+#   python blender/render.py --nur-intro  # nur das Intro neu (--ohne-intro: alles außer dem Intro)
 import json
 import math
 import os
@@ -51,34 +53,61 @@ def lever_points():
     return pts
 
 
-def frame_camera(cam, objs, margin=0.035):
-    """Richtet die Kamera auf die Mitte aller Punkte aus und wählt Brennweite und Seitenverhältnis so, dass Gehäuse,
-    Hebel (in jeder Stellung) und Schatten mit etwas Rand ins Bild passen."""
+def frame_points(objs):
+    """Alles, was ins Bild muss: Gehäuse, Hebel in jeder Stellung, Kontaktschatten vor und neben dem Sockel."""
     pts = []
     for o in objs:
         pts += [o.matrix_world @ Vector(c) for c in o.bound_box]
     pts += lever_points()
-    # Kontaktschatten vor und neben dem Sockel
     for x in (-A.BASE_W / 2 - 0.04, A.BASE_W / 2 + 0.06):
         for y in (-0.08, A.D):
             pts.append(Vector((x, y, 0)))
-    for _ in range(4):
-        inv = cam.matrix_world.inverted()
-        t = [(c.x / -c.z, c.y / -c.z) for c in (inv @ p for p in pts)]
-        tx0, tx1 = min(p[0] for p in t), max(p[0] for p in t)
-        ty0, ty1 = min(p[1] for p in t), max(p[1] for p in t)
-        # auf die Mitte drehen
-        mid = cam.matrix_world.to_3x3() @ Vector(((tx0 + tx1) / 2, (ty0 + ty1) / 2, -1))
-        cam.rotation_euler = mid.to_track_quat("-Z", "Y").to_euler()
-        bpy.context.view_layer.update()
-    w, h = (tx1 - tx0) * (1 + 2 * margin), (ty1 - ty0) * (1 + 2 * margin)
-    cam.data.sensor_fit = "VERTICAL"
-    cam.data.lens = cam.data.sensor_height / h
+    return pts
+
+
+TARGET = Vector((0.0, 0.17, 0.40))   # um diesen Punkt kreist die Kamera (Mitte des Gehäuses)
+DIST = 2.95
+
+
+def orbit(cam, yaw, pitch):
+    """Kamera auf der Kugel um TARGET: yaw > 0 von rechts, pitch > 0 von oben; (0, 0) ist genau frontal."""
+    y, p = math.radians(yaw), math.radians(pitch)
+    cam.location = TARGET + Vector((math.sin(y) * math.cos(p), -math.cos(y) * math.cos(p), math.sin(p))) * DIST
+    cam.rotation_euler = (TARGET - cam.location).to_track_quat("-Z", "Y").to_euler()
+    cam.data.shift_x = cam.data.shift_y = 0
+    bpy.context.view_layer.update()
+
+
+def fit(cam, pts, aspect=None, margin=0.035):
+    """Wählt Brennweite und Objektivverschiebung so, dass alle Punkte mit Rand ins Bild passen – ohne die Kamera zu
+    drehen (frontal bleibt frontal). aspect: Breite/Höhe vorgeben (Intro) oder aus den Punkten bestimmen."""
     sc = bpy.context.scene
-    sc.render.resolution_x = RES
-    sc.render.resolution_y = int(round(RES * h / w / 2)) * 2
+    inv = cam.matrix_world.inverted()
+    t = [(c.x / -c.z, c.y / -c.z) for c in (inv @ p for p in pts)]
+    tx0, tx1 = min(p[0] for p in t), max(p[0] for p in t)
+    ty0, ty1 = min(p[1] for p in t), max(p[1] for p in t)
+    w, h = (tx1 - tx0) / 2 * (1 + 2 * margin), (ty1 - ty0) / 2 * (1 + 2 * margin)
+    if aspect is None:
+        aspect = w / h
+        sc.render.resolution_x = RES
+        sc.render.resolution_y = int(round(RES / aspect / 2)) * 2
+    else:
+        h = max(h, w / aspect)
     sc.render.resolution_percentage = 100
-    log("Bild", sc.render.resolution_x, "x", sc.render.resolution_y, "Brennweite %.1f mm" % cam.data.lens)
+    cam.data.sensor_fit = "VERTICAL"
+    cam.data.lens = cam.data.sensor_height / (2 * h)
+    # Verschiebung: Mitte der Punkte in die Bildmitte (linear – zweimal messen genügt)
+    from bpy_extras.object_utils import world_to_camera_view
+    mid = cam.matrix_world @ Vector(((tx0 + tx1) / 2, (ty0 + ty1) / 2, -1))
+    for _ in range(3):
+        bpy.context.view_layer.update()
+        v = world_to_camera_view(sc, cam, mid)
+        W, H = sc.render.resolution_x, sc.render.resolution_y
+        k = max(W, H)               # Blender misst die Verschiebung in Anteilen der längeren Bildseite
+        cam.data.shift_x += (v.x - 0.5) * W / k
+        cam.data.shift_y += (v.y - 0.5) * H / k
+    bpy.context.view_layer.update()
+    return aspect
 
 
 def to_px(p):
@@ -247,6 +276,143 @@ def export_lever(S):
     log("hebel.glb %d KB" % (os.path.getsize(path) // 1024))
 
 
+# ---------- Intro: Kameraflug von schräg oben rechts zur Frontalansicht ----------
+INTRO_FROM = (35.0, 20.0)   # Gierwinkel (von rechts), Neigung (von oben) zu Beginn
+INTRO_SECONDS = 2.5
+INTRO_FPS = 24
+IDLE_STEP = 0.4             # Sekunden je Schritt des ruhigen Lauflichts (wie PATTERNS.idle in machine3d.js)
+
+
+def ease(t):
+    """Sanft an- und auslaufen (wie ein Kamerakran)."""
+    return 0.5 - 0.5 * math.cos(math.pi * t) if t < 1 else 1.0
+
+
+def reel_print(k, text, px_per_m=4000):
+    """Bedruckte Walze fürs Intro – zeichnet wie face() in machine3d.js: Papier, rote Doppellinien mit Rauten,
+    Text bzw. große Raute. Das Bild deckt den modellierten Bogen ±REEL_ARC ab (oben = +)."""
+    from PIL import ImageFont
+    arc_deg = math.degrees(A.REEL_ARC)
+    face_deg = 360 / A.N
+    Wt = int(A.REEL_W * px_per_m)
+    Ht = int(2 * A.REEL_ARC * A.REEL_R * px_per_m)
+    Hc = A.REEL_R * math.radians(face_deg) * px_per_m      # Höhe einer Seite in Pixeln
+    u = A.REEL_H * px_per_m / 112                           # Maßstab wie in machine3d.js
+    im = Image.new("RGB", (Wt, Ht))
+    d = ImageDraw.Draw(im)
+    stops = [(0, (0xe2, 0xd0, 0xa6)), (0.1, (0xf3, 0xe6, 0xc8)), (0.5, (0xf8, 0xee, 0xd8)), (0.9, (0xf3, 0xe6, 0xc8)),
+             (1, (0xe2, 0xd0, 0xa6))]
+    for x in range(Wt):
+        f = x / (Wt - 1)
+        for (p0, c0), (p1, c1) in zip(stops, stops[1:]):
+            if p0 <= f <= p1:
+                t = (f - p0) / (p1 - p0)
+                d.line([(x, 0), (x, Ht)], fill=tuple(round(a + (b - a) * t) for a, b in zip(c0, c1)))
+                break
+    red, cream = (0xb3, 0x26, 0x1e), (0xf6, 0xeb, 0xd1)
+
+    def diamond(x, y, r, ring):
+        if ring:
+            d.polygon([(x, y - r - ring), (x + r + ring, y), (x, y + r + ring), (x - r - ring, y)], fill=cream)
+        d.polygon([(x, y - r), (x + r, y), (x, y + r), (x - r, y)], fill=red)
+    top = lambda c: Ht * (0.5 - (c + face_deg / 2) / (2 * arc_deg))   # Oberkante der Seite mit Mitte c (Grad)
+    font = ImageFont.truetype(A.asset("rokkitt_extrabold.ttf"), int(A.REEL_H * 0.84 * 0.42 * px_per_m))
+    for c in range(-int(arc_deg // face_deg + 1) * int(face_deg), int(arc_deg) + int(face_deg), int(face_deg)):
+        y0 = top(c)
+        for y in (y0 + Hc * 0.09, y0 + Hc * 0.91 - 5 * u):
+            lw = 1.5 * u
+            d.rectangle([Wt * 0.09, y, Wt * 0.91, y + lw], fill=red)
+            d.rectangle([Wt * 0.09, y + 5 * u - lw, Wt * 0.91, y + 5 * u], fill=red)
+            diamond(Wt / 2, y + 2.5 * u, 4.5 * u, 3 * u)
+        if c == 0:
+            if text:
+                size = font.size
+                d.text((Wt / 2, y0 + Hc / 2 + size * 0.04), text.upper(), font=font, fill=(0x1e, 0x13, 0x0d), anchor="mm")
+            else:
+                diamond(Wt / 2, y0 + Hc / 2, A.REEL_H * 0.84 * 0.17 * px_per_m, 0)
+    path = os.path.join(TMP, f"walze_{k}.png")
+    im.save(path)
+    m, nt, bsdf = A.node_mat(f"Walze {k} bedruckt")
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(path)
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.5
+    bsdf.inputs["Specular IOR Level"].default_value = 0.3
+    return m
+
+
+def bulb_rows(S):
+    """Birnen in der Reihenfolge von machine3d.js, mit Index von links in ihrer Reihe."""
+    rows = [S["crown_bulbs"][0], S["crown_bulbs"][1], S["base_bulbs"]]
+    return [(b, i) for row in rows for i, b in enumerate(row)]
+
+
+def intro(S, pts, aspect, texts=("Hebel", "ziehen", "")):
+    """Rendert den Kameraflug als Einzelbilder und daraus intro.mp4: links die Farbe (mit Alpha vormultipliziert),
+    rechts das Alpha als Grau – so geht Transparenz in jedem Browser, auch ohne Video mit Alphakanal."""
+    sc = bpy.context.scene
+    cam = sc.camera
+    M = S["materials"]
+    vw = int(os.environ.get("INTRO_W", 360 if QUICK else 864))
+    vh = int(round(vw / aspect / 2)) * 2
+    frames = int(round(INTRO_SECONDS * INTRO_FPS))
+    samples = int(os.environ.get("INTRO_SAMPLES", 6 if QUICK else 64))
+    keep = (sc.render.resolution_x, sc.render.resolution_y)
+    sc.render.resolution_x, sc.render.resolution_y = vw, vh
+    # Alles wie im Spiel, nur in einem Bild: bedruckte Walzen hinter Glas, Hebel in Ruhestellung, Birnen nach Muster
+    for k, r in enumerate(S["reels"]):
+        r.data.materials[0] = reel_print(k, texts[k])
+    S["glass"].hide_render = False
+    for o in S["lever"]:
+        o.hide_render = False
+    on = M["bulb"]
+    on.node_tree.nodes["Leuchten"].outputs[0].default_value = 1.0
+    off = on.copy()
+    off.node_tree.nodes["Leuchten"].outputs[0].default_value = 0.0
+    bulbs = bulb_rows(S)
+    for b, _ in bulbs:
+        b.material_slots[0].link = "OBJECT"
+    fdir = os.path.join(TMP, "intro")
+    os.makedirs(fdir, exist_ok=True)
+    only = os.environ.get("INTRO_FRAMES")          # z. B. "0,30,59" für eine Vorschau einzelner Bilder
+    todo = [int(x) for x in only.split(",")] if only else range(frames)
+    for i in todo:
+        t = i / (frames - 1)
+        e = ease(t)
+        orbit(cam, INTRO_FROM[0] * (1 - e), INTRO_FROM[1] * (1 - e))
+        fit(cam, pts, aspect)
+        n = int((i / INTRO_FPS) // IDLE_STEP)
+        for b, idx in bulbs:
+            b.material_slots[0].material = on if (idx + n) % 3 == 0 else off
+        img = render(f"intro/{i:03d}", samples)
+        rgb = premul(img)
+        a = np.repeat(img[..., 3:4], 3, axis=2)
+        Image.fromarray(np.clip(np.concatenate([rgb, a], axis=1) * 255 + 0.5, 0, 255).astype(np.uint8)).save(
+            os.path.join(fdir, f"s{i:03d}.png"))
+    if not only:
+        # H.264 für (fast) alle Browser, VP9 für die übrigen (z. B. Firefox unter Linux ohne H.264)
+        src = f'-framerate {INTRO_FPS} -i "{fdir}/s%03d.png"'
+        for name, codec in [("intro.mp4", "-c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -movflags +faststart"),
+                            ("intro.webm", "-c:v libvpx-vp9 -crf 30 -b:v 0 -row-mt 1 -pix_fmt yuv420p")]:
+            path = os.path.join(OUT, name)
+            if os.system(f'ffmpeg -y -loglevel error {src} {codec} -an "{path}"') != 0:
+                raise RuntimeError("ffmpeg fehlgeschlagen: " + name)
+            log(name, "%d KB" % (os.path.getsize(path) // 1024))
+    # zurück in den Spielzustand
+    for b, _ in bulbs:
+        b.material_slots[0].link = "DATA"
+    on.node_tree.nodes["Leuchten"].outputs[0].default_value = 0.0
+    for r in S["reels"]:
+        r.data.materials[0] = M["holdout"]
+    for o in S["lever"]:
+        o.hide_render = True
+    sc.render.resolution_x, sc.render.resolution_y = keep
+    orbit(cam, 0, 0)
+    fit(cam, pts, aspect)
+    return {"dateien": {"video/mp4": "intro.mp4", "video/webm": "intro.webm"}, "fps": INTRO_FPS, "bilder": frames, "breite": vw, "hoehe": vh,
+            "lauflichtSchritt": IDLE_STEP}
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     os.makedirs(TMP, exist_ok=True)
@@ -257,11 +423,23 @@ def main():
     for o in S["lever"]:
         o.hide_render = True
     bpy.context.view_layer.update()
-    frame_camera(cam, [o for o in sc.objects if o.type == "MESH" and o.visible_get() and o.visible_camera
-                       and o not in S["lever"] and o is not S["floor"] and o.location.z > -5])
-    bpy.context.view_layer.update()
+    pts = frame_points([o for o in sc.objects if o.type == "MESH" and o.visible_get() and o.visible_camera
+                        and o not in S["lever"] and o is not S["floor"] and o.location.z > -5])
+    # Spielansicht: genau frontal, auf Augenhöhe der Gehäusemitte
+    orbit(cam, 0, 0)
+    aspect = fit(cam, pts)
     W, H = sc.render.resolution_x, sc.render.resolution_y
-
+    log("Bild", W, "x", H, "Brennweite %.1f mm" % cam.data.lens)
+    if "--nur-intro" in sys.argv:
+        info = intro(S, pts, aspect)
+        path = os.path.join(OUT, "szene.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                data = json.load(f)
+            data["intro"] = info
+            with open(path, "w") as f:
+                json.dump(data, f, indent=1)
+        return
     def bulbs(on):
         M["bulb"].node_tree.nodes["Leuchten"].outputs[0].default_value = 1.0 if on else 0.0
 
@@ -347,6 +525,10 @@ def main():
         json.dump(data, f, indent=1)
     log("szene.json")
 
+    if "--ohne-intro" not in sys.argv:
+        data["intro"] = intro(S, pts, aspect)
+        with open(os.path.join(OUT, "szene.json"), "w") as f:
+            json.dump(data, f, indent=1)
     environment(S, Vector((A.W / 2 + A.LEVER_OUT, A.LEVER_PIVOT.y, A.LEVER_PIVOT.z + 0.16)))
     export_lever(S)
     os.makedirs(A.BUILD, exist_ok=True)
