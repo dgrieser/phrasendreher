@@ -199,7 +199,7 @@ main { flex: 1; }
    dazu live die Walzen, der Hebel und das Lauflicht. Das Seitenverhältnis ist das des Renders. */
 .machine {
   position: relative;
-  aspect-ratio: 1200 / 1562;
+  aspect-ratio: 1200 / 1584;
   margin: 4px -6px 0;
 }
 
