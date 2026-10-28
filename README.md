@@ -114,6 +114,8 @@ reduzieren“ nicht). Texturen, Umgebung und Schrift fürs Rendern: [`public/aut
 
 Die meisten Geräusche entstehen live mit der Web Audio API. Das Anlaufen der Walzen, das Zurückschnellen des Hebels
 und der Gewinnton beim Ergebnis sind Aufnahmen in `public/sounds/`, Details in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).
+Sie werden schon während des Ladebildschirms geladen und dekodiert, der Ton wird bei der ersten Geste irgendwo auf der
+Seite freigeschaltet – so klingt schon der erste Zug richtig.
 
 ## Testlabor
 
