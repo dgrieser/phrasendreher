@@ -603,8 +603,12 @@
     render();
     btn.addEventListener("click", () => { on = !on; store.set("sound", on); render(); });
 
+    // Nur bei laufendem Ton: solange er noch gesperrt ist, würden sich Geräusche stauen und beim Freischalten auf
+    // einmal losplatzen
+    const live = () => on && ctx && ctx.state === "running";
+
     function tone(freq, dur, vol, when = 0, type = "sine") {
-      if (!on || !ctx) return;
+      if (!live()) return;
       const t = ctx.currentTime + when;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
@@ -620,7 +624,7 @@
 
     // Kurzes, gefiltertes Rauschen: klingt nach Metall und Holz.
     function click(freq, dur, vol, when = 0, q = 6) {
-      if (!on || !ctx || !noise) return;
+      if (!live() || !noise) return;
       const t = ctx.currentTime + when;
       const src = ctx.createBufferSource();
       src.buffer = noise;
@@ -636,21 +640,29 @@
       src.stop(t + dur + 0.02);
     }
 
-    // Aufnahmen (public/sounds/) werden beim ersten Antippen geladen; bis dahin gibt es die synthetischen Geräusche.
+    // Aufnahmen (public/sounds/) gleich beim Laden der Seite holen und dekodieren – in einem Offline-Kontext, der
+    // keine Geste braucht. So klingen sie schon beim ersten Zug, nicht erst ab dem zweiten.
     const samples = { leverReturn: null, spinStart: null, win: null };
     const LEVER_IMPACT = 0.125;   // Sekunden vom Beginn von lever-return.wav bis zum Anschlag
-    function loadSamples() {
+    // Der Ladebildschirm wartet darauf (machine3d.js, Phrasendreher.soundsReady).
+    window.Phrasendreher.soundsReady = (function loadSamples() {
+      const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!Offline) return Promise.resolve();
+      let decoder;
+      try { decoder = new Offline(1, 1, 44100); } catch (e) { return Promise.resolve(); }
       const load = (name) => fetch("sounds/" + name)
         .then((r) => r.arrayBuffer())
-        .then((data) => new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject)))
+        .then((data) => new Promise((resolve, reject) => decoder.decodeAudioData(data, resolve, reject)))
         .catch(() => null);
-      load("lever-return.wav").then((b) => { samples.leverReturn = b; });
-      load("spin-start.mp3").then((b) => { samples.spinStart = b; });
-      load("win.mp3").then((b) => { samples.win = b; });
-    }
+      return Promise.all([
+        load("lever-return.wav").then((b) => { samples.leverReturn = b; }),
+        load("spin-start.mp3").then((b) => { samples.spinStart = b; }),
+        load("win.mp3").then((b) => { samples.win = b; }),
+      ]);
+    })();
     // Spielt eine Aufnahme ab, auf Wunsch verzögert (delay > 0) oder schon ein Stück weit drin (delay < 0).
     function play(buffer, vol, delay = 0) {
-      if (!on || !ctx || !buffer) return null;
+      if (!live() || !buffer) return null;
       const src = ctx.createBufferSource();
       src.buffer = buffer;
       const g = ctx.createGain();
@@ -660,19 +672,37 @@
       return src;
     }
 
+    // Ton freischalten: Browser erlauben das nur bei einer Geste. Auf Telefonen zählt dabei erst das Loslassen
+    // (pointerup/touchend), nicht das Aufsetzen – daher bei jeder dafür tauglichen Geste irgendwo auf der Seite,
+    // bis der Ton läuft. Ein stiller Puffer weckt iOS vollständig auf.
+    function unlock() {
+      try {
+        if (!ctx) {
+          ctx = new (window.AudioContext || window.webkitAudioContext)();
+          noise = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
+          const d = noise.getChannelData(0);
+          for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        }
+        if (ctx.state !== "running") {
+          const silent = ctx.createBufferSource();
+          silent.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+          silent.connect(ctx.destination);
+          silent.start();
+          const p = ctx.resume();
+          if (p) p.then(stopListening, () => {});
+        } else {
+          stopListening();
+        }
+      } catch (e) { ctx = null; }
+    }
+    const GESTURES = ["pointerdown", "pointerup", "touchend", "click", "keydown"];
+    function stopListening() {
+      if (ctx && ctx.state === "running") GESTURES.forEach((t) => document.removeEventListener(t, unlock, true));
+    }
+    GESTURES.forEach((t) => document.addEventListener(t, unlock, { capture: true, passive: true }));
+
     return {
-      unlock() {
-        try {
-          if (!ctx) {
-            ctx = new (window.AudioContext || window.webkitAudioContext)();
-            noise = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
-            const d = noise.getChannelData(0);
-            for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-            loadSamples();
-          }
-          if (ctx.state === "suspended") ctx.resume();
-        } catch (e) { ctx = null; }
-      },
+      unlock,
       tick(k) {
         const now = performance.now();
         if (now - lastTick < 28) return;

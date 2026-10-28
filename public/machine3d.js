@@ -33,6 +33,8 @@ async function loadAll() {
   let done = 0;
   const tick = (x) => { done++; window.Loader?.progress(0.6 + 0.25 * (done / files)); return x; };
   const tex = (name) => new THREE.TextureLoader().loadAsync(BASE + name).then(tick);
+  // Auch die Geräusche (app.js) sollen beim ersten Zug schon da sein – aber höchstens 5 s darauf warten
+  const sounds = Promise.race([window.Phrasendreher?.soundsReady, new Promise((r) => setTimeout(r, 5000))]);
   const [plate, glow, reelLight, env, gltf, intro] = await Promise.all([
     tex("automat.webp"),
     tex("gluehen.webp"),
@@ -40,6 +42,7 @@ async function loadAll() {
     new RGBELoader().loadAsync(BASE + "umgebung.hdr").then(tick),
     new GLTFLoader().loadAsync(BASE + "hebel.glb").then(tick),
     withIntro ? loadVideo(scene.intro.dateien).then(tick, () => tick(null)) : null,
+    sounds,
   ]);
   return { scene, plate, glow, reelLight, env, gltf, intro };
 }
