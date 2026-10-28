@@ -48,6 +48,8 @@ const TYPES = {
   ".png": "image/png",
   ".webp": "image/webp",
   ".glb": "model/gltf-binary",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
   ".hdr": "application/octet-stream",
   ".ico": "image/x-icon",
   ".wav": "audio/wav",

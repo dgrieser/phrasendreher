@@ -5,6 +5,8 @@
 //     der Spiegelung der Glasscheibe,
 //   – der Hebel (glTF aus Blender), gespiegelt in einer Rundum-Aufnahme vom Hebel aus, mit Schatten auf der Wand,
 //   – die Glühbirnen: das gerenderte Leuchten aller Birnen wird pro Birne ein- und ausgeblendet.
+// Zum Start fliegt die Kamera in einem vorab gerenderten Video (intro.mp4) von schräg oben rechts zur Frontalansicht;
+// dessen letztes Bild ist die Spielansicht, dort wird auf den Live-Automaten überblendet.
 // app.js steuert Walzen und Hebel; dieses Modul zeichnet nur. Ohne WebGL gibt es nur einen Hinweis.
 import * as THREE from "three";
 import { GLTFLoader } from "./vendor/GLTFLoader.js";
@@ -25,19 +27,44 @@ const SLAB = '"Rokkitt", "Rockwell", Georgia, serif';
 // ---------- Laden ----------
 // Jede Datei rückt die Ladeanzeige ein Stück weiter (von 0,6 bis 0,85).
 async function loadAll() {
-  const files = 6;
+  const scene = await fetch(BASE + "szene.json").then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+  const withIntro = scene.intro && !reduceMotion;
+  const files = withIntro ? 6 : 5;
   let done = 0;
   const tick = (x) => { done++; window.Loader?.progress(0.6 + 0.25 * (done / files)); return x; };
   const tex = (name) => new THREE.TextureLoader().loadAsync(BASE + name).then(tick);
-  const [scene, plate, glow, reelLight, env, gltf] = await Promise.all([
-    fetch(BASE + "szene.json").then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(tick),
+  const [plate, glow, reelLight, env, gltf, intro] = await Promise.all([
     tex("automat.webp"),
     tex("gluehen.webp"),
     tex("walzen.webp"),
     new RGBELoader().loadAsync(BASE + "umgebung.hdr").then(tick),
     new GLTFLoader().loadAsync(BASE + "hebel.glb").then(tick),
+    withIntro ? loadVideo(scene.intro.dateien).then(tick, () => tick(null)) : null,
   ]);
-  return { scene, plate, glow, reelLight, env, gltf };
+  return { scene, plate, glow, reelLight, env, gltf, intro };
+}
+
+// Das Intro als Blob laden (so braucht der Server keine Range-Anfragen, die Safari für Videos sonst verlangt) und
+// warten, bis das erste Bild dekodiert ist. Klappt etwas nicht, startet der Automat eben ohne Intro.
+async function loadVideo(files) {
+  const video = document.createElement("video");
+  const type = Object.keys(files).find((t) => video.canPlayType(t));
+  if (!type) throw new Error("kein passendes Videoformat");
+  const blob = await fetch(BASE + files[type]).then((r) => { if (!r.ok) throw new Error(r.status); return r.blob(); });
+  video.muted = true;
+  video.playsInline = true;
+  video.setAttribute("playsinline", "");
+  video.preload = "auto";
+  video.setAttribute("aria-hidden", "true");
+  video.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;pointer-events:none";
+  document.body.appendChild(video);
+  video.src = URL.createObjectURL(blob);
+  await new Promise((resolve, reject) => {
+    video.addEventListener("loadeddata", resolve, { once: true });
+    video.addEventListener("error", reject, { once: true });
+    setTimeout(() => reject(new Error("Intro lädt nicht")), 8000);
+  });
+  return video;
 }
 
 function init(A) {
@@ -520,6 +547,85 @@ function init(A) {
     });
   }
 
+  // ---------- Intro ----------
+  // Video mit links der Farbe (mit Alpha vormultipliziert) und rechts dem Alpha als Grau. Es läuft einmal, sobald
+  // der Ladebildschirm geht; sein letztes Bild ist genau die Spielansicht, dort wird auf den Live-Automaten
+  // überblendet. Solange es läuft, ist der Hebel gesperrt (body.intro).
+  const INTRO_START = 1000;        // ms nach Loader.done(): der Ladebildschirm blendet gerade aus
+  const INTRO_FADE = 350;          // ms Überblendung am Ende
+  let intro = null;
+  if (A.intro) {
+    const video = A.intro;
+    const tex = new THREE.VideoTexture(video);
+    tex.colorSpace = THREE.NoColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uVideo: { value: tex }, uOpacity: { value: 1 }, uTexel: { value: 0.5 / S.intro.breite } },
+      vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+      fragmentShader: `uniform sampler2D uVideo; uniform float uOpacity, uTexel; varying vec2 vUv;
+        void main() {
+          float x = clamp(vUv.x * 0.5, uTexel, 0.5 - uTexel);     // nicht über die Naht zwischen den Hälften lesen
+          vec3 c = texture2D(uVideo, vec2(x, vUv.y)).rgb;
+          float a = texture2D(uVideo, vec2(x + 0.5, vUv.y)).r;
+          gl_FragColor = vec4(c, a) * uOpacity;
+        }`,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.OneFactor,
+      blendDst: THREE.OneMinusSrcAlphaFactor,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+    quad.frustumCulled = false;
+    const scene = new THREE.Scene();
+    scene.add(quad);
+    intro = { video, tex, mat, scene, fadeFrom: 0 };
+    document.body.classList.add("intro");
+    video.addEventListener("ended", endIntro, { once: true });
+  }
+
+  function startIntro() {
+    if (!intro) return;
+    intro.video.play().then(() => invalidate(), endIntro);   // Autoplay verweigert: gleich der Live-Automat
+    setTimeout(endIntro, (S.intro.bilder / S.intro.fps + 3) * 1000);   // falls das Video hängen bleibt
+  }
+
+  // Ende des Flugs: das Lauflicht übernimmt genau dort, wo es im Video stand, dann wird überblendet
+  function endIntro() {
+    if (!intro || intro.fadeFrom) return;
+    const ran = (S.intro.bilder - 1) / S.intro.fps * 1000;
+    lightState = "idle";
+    lightSince = performance.now() - ran;
+    tickLights();
+    bulbs.forEach((b, k) => { b.level = b.on ? 1 : 0; levels[k] = b.level; });
+    intro.fadeFrom = performance.now();
+    document.body.classList.remove("intro");
+    invalidate();
+  }
+
+  function drawIntro(now) {
+    if (!intro.fadeFrom) {
+      renderer.clear();
+      renderer.render(intro.scene, flatCam);
+      if (!intro.video.paused) invalidate();
+      return true;
+    }
+    const k = 1 - (now - intro.fadeFrom) / INTRO_FADE;
+    if (k <= 0) {
+      intro.tex.dispose();
+      intro.mat.dispose();
+      URL.revokeObjectURL(intro.video.src);
+      intro.video.remove();
+      intro = null;
+      return false;
+    }
+    intro.mat.uniforms.uOpacity.value = k;
+    renderer.render(intro.scene, flatCam);
+    invalidate();
+    return false;
+  }
+
   // ---------- Zeichnen bei Bedarf ----------
   let theta = 0;
   let swayDeg = 0;
@@ -532,6 +638,11 @@ function init(A) {
   }
   function draw(now) {
     queued = false;
+    if (intro && !intro.fadeFrom) {
+      drawIntro(now);
+      ready();
+      return;
+    }
     if (fading && !stepFade(now)) fading = false;
     syncReels();
     pivot.rotation.x = THREE.MathUtils.degToRad(theta);
@@ -544,11 +655,16 @@ function init(A) {
     renderer.render(reelScene, camera);
     renderer.render(plateScene, flatCam);
     renderer.render(leverScene, camera);
+    if (intro) drawIntro(now);          // Überblendung vom letzten Videobild
     if (fading) invalidate();
-    if (!canvas.classList.contains("ready")) {
-      canvas.classList.add("ready");   // erst sichtbar, wenn ein vollständiges Bild steht
-      window.Loader?.done();
-    }
+    ready();
+  }
+
+  function ready() {
+    if (canvas.classList.contains("ready")) return;
+    canvas.classList.add("ready");      // erst sichtbar, wenn ein vollständiges Bild steht
+    window.Loader?.done();
+    setTimeout(startIntro, INTRO_START);
   }
 
   function lever(th, sw = 0) {
@@ -587,7 +703,7 @@ function init(A) {
   }
 
   layout();
-  tickLights();
+  if (!intro) tickLights();
   let resizeTimer;
   new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(layout, 60); }).observe(machine);
   // Falls die Schriften beim Aufbau noch nicht da waren: neu beschriften, sobald sie geladen sind
