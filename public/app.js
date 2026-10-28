@@ -347,7 +347,9 @@
       const tapped = drag.moved < 6 && Date.now() - drag.t0 < 350;
       drag = null;
       el.classList.remove("dragging");
-      if (caught) { caught = false; fire(); return; }   // losgelassen: jetzt darf der Ton, jetzt geht es los
+      // Losgelassen: der Browser gibt den Ton erst ein paar Millisekunden später frei (Chrome bei touchend, nach
+      // pointerup) – darauf warten, dann geht es los
+      if (caught) { caught = false; sound.whenReady(fire); return; }
       mode = "spring";
       if (tapped && theta < 1) { mode = "rest"; pull(); }
     }
@@ -685,6 +687,22 @@
     // (pointerup/touchend), nicht das Aufsetzen – daher bei jeder dafür tauglichen Geste irgendwo auf der Seite,
     // bis der Ton läuft. Ein stiller Puffer weckt iOS vollständig auf.
     // Zählt dieses Ereignis als Geste, die Ton erlaubt? (Telefon: erst Loslassen; Maus: schon Drücken)
+    // Wer auf die Freigabe wartet (der eingerastete Hebel): sofort, sobald der Ton darf – spätestens nach 0,4 s
+    let waiting = [];
+    function flush() {
+      if (!live() && !broken && on) return;
+      const w = waiting;
+      waiting = [];
+      w.forEach((f) => f());
+    }
+    function whenReady(fn) {
+      if (!on || broken || live()) return fn();
+      let done = false;
+      const once = () => { if (!done) { done = true; fn(); } };
+      waiting.push(once);
+      setTimeout(once, 400);
+    }
+
     function activating(e) {
       if (navigator.userActivation) return navigator.userActivation.isActive;
       if (!e) return false;
@@ -705,13 +723,14 @@
           silent.start();
           const p = ctx.resume();
           if (activating(e)) resuming = true;
-          if (p) p.then(() => { resuming = false; stopListening(); }, () => { resuming = false; });
+          if (p) p.then(() => { resuming = false; stopListening(); flush(); }, () => { resuming = false; });
         } else {
           stopListening();
         }
+        flush();
       } catch (err) { ctx = null; broken = true; }
     }
-    const GESTURES = ["pointerdown", "pointerup", "touchend", "click", "keydown"];
+    const GESTURES = ["pointerdown", "mousedown", "pointerup", "touchend", "click", "keydown"];
     function stopListening() {
       if (ctx && ctx.state === "running") GESTURES.forEach((t) => document.removeEventListener(t, unlock, true));
     }
@@ -721,6 +740,7 @@
       unlock,
       // Darf jetzt ein Geräusch erklingen? (Ton aus zählt als bereit – dann gibt es nichts zu warten)
       ready: () => !on || broken || live(),
+      whenReady,
       tick(k) {
         const now = performance.now();
         if (now - lastTick < 28) return;
