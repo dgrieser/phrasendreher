@@ -246,5 +246,16 @@
    0.8199999928474426,
    0.6600000262260437
   ]
+ },
+ "intro": {
+  "dateien": {
+   "video/mp4": "intro.mp4",
+   "video/webm": "intro.webm"
+  },
+  "fps": 24,
+  "bilder": 60,
+  "breite": 864,
+  "hoehe": 1140,
+  "lauflichtSchritt": 0.4
  }
 }
