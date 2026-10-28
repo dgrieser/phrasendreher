@@ -230,7 +230,7 @@
       machine.classList.add("shake");
     }
 
-    // Drehpunkt bei 55 % der Hebelspalte, Arm 38 % ihrer Höhe (wie in machine3d.js)
+    // Ersatzgeometrie, solange das 3D-Modell fehlt: Drehpunkt bei 55 % der Grifffläche, Arm 38 % ihrer Höhe
     function geometry() {
       const rect = el.getBoundingClientRect();
       return { pivot: rect.top + rect.height * 0.55, L: rect.height * 0.38 };
@@ -331,6 +331,11 @@
     function move(e) {
       if (!drag) return;
       drag.moved = Math.max(drag.moved, Math.abs(e.clientY - drag.y0));
+      if (window.Machine3D) {
+        // Der Knauf folgt dem Finger: Winkel aus der echten Bildschirmbahn des Knaufs im 3D-Modell
+        target = clamp(window.Machine3D.angleAt(e.clientY - drag.offset), 0, MAX);
+        return;
+      }
       const cos = clamp((drag.g.pivot - (e.clientY - drag.offset)) / drag.g.L, Math.cos((MAX * Math.PI) / 180), 1);
       target = (Math.acos(cos) * 180) / Math.PI;
     }

@@ -7,7 +7,6 @@
   --brass-h: linear-gradient(90deg, #6b4311 0%, #c79a3f 18%, #fbe6a6 40%, #d8ac52 58%, #8c5d1b 82%, #e6c26e 100%);
   --serif: "Libre Caslon Text", Georgia, serif;
   --slab: "Rokkitt", "Rockwell", Georgia, serif;
-  --reel-h: 100px;
   color-scheme: dark;
 }
 
@@ -196,71 +195,34 @@ main { flex: 1; }
 }
 
 /* ---------- Automat ----------
-   Gezeichnet wird der ganze Automat in 3D (public/machine3d.js). Das HTML-Gerüst hier ist unsichtbar und liefert
-   nur Maße und Positionen von Krone, Schild, Fenster, Walzen, Sockel und Hebel. */
+   Gezeichnet wird der Automat auf einer Leinwand (public/machine3d.js): ein Cycles-Render aus Blender (blender/),
+   dazu live die Walzen, der Hebel und das Lauflicht. Das Seitenverhältnis ist das des Renders. */
 .machine {
-  --lever-col: 52px;
   position: relative;
-  margin-top: 4px;
-  /* gleich viel Platz links wie rechts für den Hebel – so steht das Gehäuse mittig */
-  padding: 0 var(--lever-col);
-}
-.cabinet { visibility: hidden; }
-
-.crown, .body, .base { padding: 4px; }
-.crown-wood {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 26px 12px 14px;
-}
-/* Glühbirnen wie auf dem Ladebildschirm: zwei Reihen um das Schild, eine Reihe auf dem Sockel */
-.bulbs { display: flex; gap: 10px; }
-.bulb { flex: none; width: 9px; height: 9px; }
-.plate {
-  margin: 0;
-  padding: 7px 14px 5px;
-  font: 900 clamp(.8rem, 3.9vw, 1.4rem) var(--slab);
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  aspect-ratio: 1200 / 1562;
+  margin: 4px -6px 0;
 }
 
-.body { margin-top: 3px; }
-.body-wood { padding: 12px; }
-.bezel { padding: 9px; }
-.window { display: grid; gap: 5px; padding: 5px 0; }
-.reel { height: var(--reel-h); }
-
-.base { margin-top: 3px; }
-.base-wood { padding: 18px 16px; }
-.rail { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.rivet { flex: none; width: 13px; height: 13px; }
-.gem { flex: none; width: 22px; height: 22px; }
-
-/* Die Leinwand liegt über dem ganzen Automaten und erscheint erst, wenn das Modell fertig gezeichnet ist
-   (Schriften geladen) – vorher bleibt die Fläche leer statt halbfertig. */
+/* Die Leinwand erscheint erst, wenn das erste vollständige Bild steht – vorher bleibt die Fläche leer. */
 .machine3d {
   position: absolute;
-  z-index: 2;
-  top: -40px;
-  left: -16px;
-  width: calc(100% + 32px);
-  height: calc(100% + 110px);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   opacity: 0;
   transition: opacity .35s ease-out;
 }
 .machine3d.ready { opacity: 1; }
 
-/* Grifffläche des Hebels */
+/* Grifffläche des Hebels (Lage und Größe setzt machine3d.js passend zum Modell) */
 .lever {
   position: absolute;
   z-index: 3;
   top: 0;
   right: 0;
-  bottom: 0;
-  width: 64px;
+  width: 25%;
+  height: 70%;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -398,11 +360,6 @@ footer {
 .toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
 
 :focus-visible { outline: 2px solid #f1d38a; outline-offset: 3px; }
-
-@media (min-width: 560px) {
-  :root { --reel-h: 112px; }
-  .machine { --lever-col: 64px; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
