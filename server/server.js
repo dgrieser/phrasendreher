@@ -2,6 +2,7 @@
 "use strict";
 
 const http = require("http");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { loadConfig, combine, combineStream, userMessage, SYSTEM_PROMPT } = require("./llm");
@@ -14,6 +15,10 @@ const PORT = Number(process.env.PORT) || 8080;
 const config = loadConfig();
 const TEST_PAGE = !/^(0|false|no|off)$/i.test(process.env.TEST_PAGE || "");
 const TRUST_PROXY = !/^(0|false|no|off)$/i.test(process.env.TRUST_PROXY || "");
+// Zugang zum Testlabor (HTTP Basic Auth): nur wenn beide gesetzt sind, sonst ist es offen
+const TEST_USER = process.env.TEST_USER || "";
+const TEST_PASSWORD = process.env.TEST_PASSWORD || "";
+const TEST_AUTH = !!(TEST_USER && TEST_PASSWORD);
 
 // Ratenbegrenzung pro IP – schützt vor allem das LLM-Kontingent.
 const limits = {
@@ -28,6 +33,26 @@ function allow(kind, req, res) {
   if (!wait) return true;
   res.setHeader("Retry-After", String(wait));
   sendJson(res, 429, { error: `Zu viele Anfragen – bitte in ${wait} s erneut versuchen.`, retryAfter: wait });
+  return false;
+}
+
+// Testlabor: seine Dateien (geprüft am fertig aufgelösten Pfad – so helfen weder //, %-Kodierung noch ../) und seine
+// Schnittstellen. Der Automat selbst (und /api/dreh) bleibt offen.
+const TEST_FILES = new Set(["test.html", "test.js", "test.css"].map((f) => path.join(PUBLIC, f)));
+const TEST_API = new Set(["/api/test", "/api/prompt", "/api/pair", "/api/models"]);
+
+// Gleich lange Hashes vergleichen, in konstanter Zeit – verrät nichts über Länge oder erste richtige Zeichen.
+const digest = (s) => crypto.createHash("sha256").update(s).digest();
+const EXPECTED = digest(`${TEST_USER}:${TEST_PASSWORD}`);
+
+// true = weiter; sonst ist die 401-Antwort (Browser fragt nach Name und Passwort) schon verschickt.
+function authorized(req, res) {
+  const m = /^Basic\s+(\S+)$/i.exec(req.headers.authorization || "");
+  const given = m ? Buffer.from(m[1], "base64").toString("utf8") : "";
+  if (m && crypto.timingSafeEqual(digest(given), EXPECTED)) return true;
+  res.writeHead(401, { "WWW-Authenticate": 'Basic realm="Phrasendreher-Testlabor", charset="UTF-8"',
+    "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+  res.end("Das Testlabor ist geschlossen – bitte anmelden.");
   return false;
 }
 
@@ -153,9 +178,12 @@ function serveStatic(req, res) {
     if (!TEST_PAGE) { res.writeHead(404); return res.end(); }
     urlPath = "/test.html";
   }
-  if (urlPath === "/test.html" && !TEST_PAGE) { res.writeHead(404); return res.end(); }
   const file = path.normalize(path.join(PUBLIC, urlPath));
   if (!file.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
+  if (TEST_FILES.has(file)) {
+    if (!TEST_PAGE) { res.writeHead(404); return res.end(); }
+    if (TEST_AUTH && !authorized(req, res)) return;
+  }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" }); return res.end("Da liegt der Hund begraben: 404"); }
     res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
@@ -164,6 +192,7 @@ function serveStatic(req, res) {
 }
 
 const server = http.createServer((req, res) => {
+  if (TEST_PAGE && TEST_AUTH && TEST_API.has(req.url) && !authorized(req, res)) return;
   if (req.url === "/api/dreh" && req.method === "POST") return void (allow("dreh", req, res) && dreh(res));
   if (req.url === "/healthz") return sendJson(res, 200, { ok: true });
   if (TEST_PAGE && req.url === "/api/test" && req.method === "POST") return void (allow("test", req, res) && test(req, res));
@@ -193,6 +222,10 @@ server.listen(PORT, () => {
     + (picker.missing ? ` – ${picker.missing} Redewendungen fehlen in server/data/partners.json (scripts/build-partners.js ausführen)` : ""));
   const show = (r) => (r ? `${r.limit} pro ${r.windowMs / 1000} s` : "aus");
   console.log(`Ratenbegrenzung: Automat ${show(limits.dreh)}, Testlabor ${show(limits.test)} (Proxy-IP: ${TRUST_PROXY ? "ja" : "nein"})`);
+  if (TEST_PAGE) {
+    console.log(TEST_AUTH ? `Testlabor /test: Anmeldung nötig (Benutzer ${TEST_USER})`
+      : "Testlabor /test ist offen – TEST_USER und TEST_PASSWORD setzen, um es zu schützen.");
+  }
 });
 
 const stop = () => server.close(() => process.exit(0));

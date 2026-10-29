@@ -51,6 +51,7 @@ den mittwald-Empfehlungen für das gewählte Modell (Katalog in `server/models.j
 | `LLM_MAX_TOKENS` | `4096` | inkl. Denk-Tokens |
 | `LLM_TIMEOUT_MS` | `45000` | danach greift die Notlösung |
 | `TEST_PAGE` | `true` | Testseite `/test` an/aus |
+| `TEST_USER`, `TEST_PASSWORD` | – | Sind beide gesetzt, verlangt das Testlabor eine Anmeldung (HTTP Basic Auth) |
 | `RATE_LIMIT_SPIN` | `20/min` | Anfragen pro IP an den Automaten (`/api/dreh`); `off` schaltet ab |
 | `RATE_LIMIT_TEST` | `10/10min` | Läufe pro IP im Testlabor (`/api/test`); `off` schaltet ab |
 | `PAIR_WEIGHTS` | `meaning:50,image:25,sound:10,grammar:15` | Gewichte der Partner-Quellen (siehe unten) |
@@ -128,6 +129,10 @@ Modell, Profil, Thinking, Denkstufe und Sampling-Parameter sind dort wählbar. D
 `/v1/models` (was der Key darf) und der mittwald-API (Anzeigename, Reifegrad, Token-Faktor, Doku-Link). Wie ein
 Modell sein Denken steuert und welche Einstellungen mittwald empfiehlt, steht in `server/models.js` – die Profile
 im Testlabor sind genau diese Empfehlungen.
+Mit `TEST_USER` und `TEST_PASSWORD` verlangt das Testlabor eine Anmeldung (HTTP Basic Auth) – für die Seite und ihre
+Schnittstellen (`/api/test`, `/api/prompt`, `/api/pair`, `/api/models`); der Automat selbst bleibt offen. Ohne die beiden
+Variablen ist das Testlabor für alle erreichbar, der Server weist beim Start darauf hin. Basic Auth schickt das Passwort
+bei jeder Anfrage mit – nur über HTTPS betreiben (bei mittwald der Fall).
 Mit `TEST_PAGE=false` ist die Seite abgeschaltet.
 
 ## Ratenbegrenzung
