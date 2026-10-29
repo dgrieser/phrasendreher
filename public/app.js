@@ -143,7 +143,7 @@
 
   const SPEEDS = reduceMotion ? [200, 200, 200] : [820, 900, 760];
   const drums = [0, 1, 2].map((k) => new Drum(k));
-  window.Phrasendreher = { drums };
+  window.Phrasendreher = { drums };   // dazu unten: soundsReady, unlockSound
 
   // ---------- Drehen ----------
   let busy = false;
@@ -735,6 +735,8 @@
       if (ctx && ctx.state === "running") GESTURES.forEach((t) => document.removeEventListener(t, unlock, true));
     }
     GESTURES.forEach((t) => document.addEventListener(t, unlock, { capture: true, passive: true }));
+    // Für den Knopf „Starten“ im Ladebildschirm (loader.js): spielt in dessen Geste einen stillen Ton
+    window.Phrasendreher.unlockSound = unlock;
 
     return {
       unlock,

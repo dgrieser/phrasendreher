@@ -1,7 +1,9 @@
 // Ladebildschirm: Glühbirnen als echte Fortschrittsanzeige und eine Fallblattanzeige, auf der bekannte
 // Redewendungen zu Lade-Weisheiten verdreht werden. Läuft direkt nach dem Ladebildschirm im HTML, vor allem anderen.
-// Fortschritt melden: Loader.progress(0…1). Fertig: Loader.done() – alle Birnen blinken, die Tafel sagt
-// „Bitte Hebel ziehen“, dann blendet der Bildschirm aus. Gescheitert: Loader.fail(). Ohne Automat: Loader.dismiss().
+// Fortschritt melden: Loader.progress(0…1). Fertig: Loader.done(onStart) – alle Birnen blinken, die Tafel sagt
+// „Automat bereit“, darunter erscheint „Starten“. Der Druck darauf spielt einen stillen Ton (das schaltet den Ton
+// für die ganze Seite frei, auch auf Telefonen), blendet den Bildschirm aus und ruft onStart.
+// Gescheitert: Loader.fail(). Ohne Automat: Loader.dismiss().
 (function () {
   "use strict";
 
@@ -111,14 +113,23 @@
 
   // ---------- Fertig ----------
   let finished = false;
-  function done() {
+  const startBtn = document.getElementById("startBtn");
+  function done(onStart) {
     if (finished) return;
     finished = true;
     clearTimeout(cycle);
     progress(1);
-    show("Bitte Hebel ziehen");
+    show("Automat bereit");
     root.classList.add("complete");          // alle Birnen blinken gemeinsam
-    setTimeout(() => root.classList.add("done"), reduceMotion ? 0 : 900);
+    document.getElementById("loaderNote").textContent = "Der Automat ist bereit.";
+    startBtn.hidden = false;
+    startBtn.focus({ preventScroll: true });
+    startBtn.addEventListener("click", () => {
+      window.Phrasendreher?.unlockSound?.();  // stiller Ton in dieser Geste: ab jetzt klingt alles sofort
+      startBtn.disabled = true;
+      root.classList.add("done");
+      if (onStart) onStart();
+    }, { once: true });
   }
 
   // Kommt der Automat gar nicht (z. B. Skript lädt nicht): Bescheid sagen, statt „Bitte Hebel ziehen“ ins Leere

@@ -83,6 +83,14 @@ body {
 .loader.complete .loader-bulbs i { animation: bulbFlash .3s steps(1, end) 3; }
 .loader.failed .loader-bulbs i { animation: none; }
 @keyframes bulbFlash { 50% { opacity: .25; box-shadow: none; } }
+/* „Starten“: erscheint, sobald alles geladen ist – der Druck darauf schaltet den Ton frei */
+.loader-start {
+  min-width: 190px;
+  animation: startIn .45s ease-out both;
+}
+.loader-start[hidden] { display: none; }
+@keyframes startIn { from { opacity: 0; transform: translateY(6px); } }
+
 /* Fallblattanzeige: dunkle Blätter mit Mittelfuge, cremefarbene Lettern */
 .flap-board {
   display: grid;
