@@ -15,7 +15,8 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Ladebildschirm: steht sofort; loader.js zeigt den Fortschritt, machine3d.js meldet sich, sobald der Automat fertig ist -->
+  <!-- Ladebildschirm: steht sofort; loader.js zeigt den Fortschritt, machine3d.js meldet sich, sobald der Automat fertig ist.
+       Dann erscheint „Starten“: der Druck darauf schaltet den Ton frei, danach fliegt die Kamera zum Automaten. -->
   <div class="loader" id="loader" role="status">
     <div class="loader-marquee">
       <div class="loader-bulbs" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -24,7 +25,8 @@
       <!-- Sichtfenster mit Fallblattanzeige statt Walzen -->
       <div class="flap-board" aria-hidden="true"></div>
     </div>
-    <p class="sr-only">Der Automat wird geladen …</p>
+    <button type="button" class="button brass loader-start" id="startBtn" hidden>Starten</button>
+    <p class="sr-only" id="loaderNote">Der Automat wird geladen …</p>
   </div>
   <script src="loader.js"></script>
   <div class="bokeh" id="bokeh" aria-hidden="true"></div>

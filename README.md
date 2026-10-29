@@ -90,7 +90,9 @@ geschliffener Rubin, Münzeinwurf, Schlossblech und der Hebel an der Seitenwand.
 (`blender/automat.py`) und wird mit Cycles fotorealistisch gerendert (`blender/render.py`, Anleitung in
 [`AGENT.md`](AGENT.md)).
 
-Zum Start fliegt die Kamera in einem vorab gerenderten Video (`intro.mp4`/`intro.webm`, 2,5 s) von schräg oben rechts
+Ist alles geladen, erscheint im Ladebildschirm „Starten“. Der Druck darauf spielt einen stillen Ton – das schaltet den
+Ton für die ganze Seite frei, auch auf Telefonen, die ihn sonst erst beim Loslassen des Fingers erlauben. Dann fliegt
+die Kamera in einem vorab gerenderten Video (`intro.mp4`/`intro.webm`, 2,5 s) von schräg oben rechts
 zur Frontalansicht; das letzte Bild des Videos ist genau die Spielansicht, dort wird auf den Live-Automaten
 überblendet. Während des Flugs ist der Hebel gesperrt. Bei „Bewegung reduzieren“ (oder wenn das Video nicht abspielt)
 steht der Automat gleich frontal da.
@@ -114,8 +116,8 @@ reduzieren“ nicht). Texturen, Umgebung und Schrift fürs Rendern: [`public/aut
 
 Die meisten Geräusche entstehen live mit der Web Audio API. Das Anlaufen der Walzen, das Zurückschnellen des Hebels
 und der Gewinnton beim Ergebnis sind Aufnahmen in `public/sounds/`, Details in [`public/sounds/QUELLEN.md`](public/sounds/QUELLEN.md).
-Sie werden schon während des Ladebildschirms geladen und dekodiert, der Ton wird bei der ersten Geste irgendwo auf der
-Seite freigeschaltet – so klingt schon der erste Zug richtig.
+Sie werden schon während des Ladebildschirms geladen und dekodiert, der Ton wird mit „Starten“ freigeschaltet – so
+klingt schon der erste Zug richtig, samt Ratsche.
 
 ## Testlabor
 

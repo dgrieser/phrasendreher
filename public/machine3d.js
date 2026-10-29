@@ -552,9 +552,9 @@ function init(A) {
 
   // ---------- Intro ----------
   // Video mit links der Farbe (mit Alpha vormultipliziert) und rechts dem Alpha als Grau. Es läuft einmal, sobald
-  // der Ladebildschirm geht; sein letztes Bild ist genau die Spielansicht, dort wird auf den Live-Automaten
+  // „Starten“ gedrückt ist; sein letztes Bild ist genau die Spielansicht, dort wird auf den Live-Automaten
   // überblendet. Solange es läuft, ist der Hebel gesperrt (body.intro).
-  const INTRO_START = 1000;        // ms nach Loader.done(): der Ladebildschirm blendet gerade aus
+  const INTRO_START = 250;         // ms nach dem Druck auf „Starten“: der Ladebildschirm blendet gerade aus
   const INTRO_FADE = 350;          // ms Überblendung am Ende
   let intro = null;
   if (A.intro) {
@@ -666,8 +666,10 @@ function init(A) {
   function ready() {
     if (canvas.classList.contains("ready")) return;
     canvas.classList.add("ready");      // erst sichtbar, wenn ein vollständiges Bild steht
-    window.Loader?.done();
-    setTimeout(startIntro, INTRO_START);
+    // Erst wenn „Starten“ gedrückt ist (Ton freigeschaltet), fliegt die Kamera los
+    const start = () => setTimeout(startIntro, INTRO_START);
+    if (window.Loader) window.Loader.done(start);
+    else start();
   }
 
   function lever(th, sw = 0) {
